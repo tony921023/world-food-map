@@ -1,0 +1,4 @@
+flask>=3.0,<4.0
+flask-cors>=4.0,<5.0
+# 生產部署用（demo 建議 --workers 1 --threads 4 確保 threading.Lock 有效）
+waitress>=3.0,<4.0

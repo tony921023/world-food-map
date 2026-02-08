@@ -1,5 +1,6 @@
 from __future__ import annotations
 import os, json, tempfile, threading
+from collections import defaultdict
 from pathlib import Path
 from time import time
 from urllib.parse import unquote
@@ -24,8 +25,10 @@ CORS(app, resources={r"/api/*": {"origins": "*"}})
 # ---------------- 共用工具 ----------------
 def _atomic_write(path: Path, obj):
     # 安全寫檔，避免中途中斷壞檔
+    # dir= 確保 temp 和目標同磁碟，Windows 上 os.replace 才不會失敗
     path.parent.mkdir(parents=True, exist_ok=True)
-    with tempfile.NamedTemporaryFile("w", delete=False, encoding="utf-8") as tmp:
+    with tempfile.NamedTemporaryFile("w", delete=False, encoding="utf-8",
+                                     dir=str(path.parent)) as tmp:
         json.dump(obj, tmp, ensure_ascii=False, separators=(",", ":"))
         tmp.flush()
         os.fsync(tmp.fileno())
@@ -37,6 +40,25 @@ _lock = threading.Lock()
 def _save_json(path: Path, obj):
     with _lock:
         _atomic_write(path, obj)
+
+# ---------------- 簡易 IP 限速（記憶體內，單 worker 有效） ----------------
+# key = "action:ip" → 上次允許的 timestamp
+_rate_ts: dict[str, float] = defaultdict(float)
+_RATE_WINDOW = {
+    "like": 2,       # 同一 IP 對同一道料理，2 秒內只能按讚 1 次
+    "comment": 5,    # 同一 IP 對同一道料理，5 秒內只能留言 1 次
+}
+
+def _rate_ok(action: str, extra: str = "") -> bool:
+    """回傳 True 表示放行，False 表示觸發限速"""
+    ip = request.remote_addr or "unknown"
+    key = f"{action}:{ip}:{extra}"
+    now = time()
+    window = _RATE_WINDOW.get(action, 2)
+    if now - _rate_ts[key] < window:
+        return False
+    _rate_ts[key] = now
+    return True
 
 def _load_json(path: Path, default):
     """容錯讀檔：不存在、空白或壞檔一律回預設並自動修復"""
@@ -171,6 +193,8 @@ def get_likes(code, name):
 @app.route('/api/food/<code>/<name>/like', methods=['POST'])
 def post_like(code, name):
     key = _kstr(code, name)
+    if not _rate_ok("like", key):
+        return jsonify({"error": "操作太頻繁，請稍後再試", "likes": int(likes_store.get(key, 0))}), 429
     likes_store[key] = int(likes_store.get(key, 0)) + 1
     _save_json(LIKES_JSON, likes_store)        # 寫回 JSON
     return jsonify({"likes": likes_store[key]})
@@ -187,11 +211,16 @@ def get_comments(code, name):
 @app.route('/api/food/<code>/<name>/comments', methods=['POST'])
 def post_comment(code, name):
     key = _kstr(code, name)
+    if not _rate_ok("comment", key):
+        return jsonify({"error": "留言太頻繁，請稍後再試"}), 429
+
     body = request.get_json(silent=True) or {}
     user = (body.get("user") or "匿名").strip()[:30]
     text = (body.get("text") or "").strip()[:500]
     if not text:
         return jsonify({"error": "text is required"}), 400
+    if len(text) < 2:
+        return jsonify({"error": "留言至少需要 2 個字"}), 400
 
     item = {
         "id": int(time() * 1000),     # 前端可拿來排序
@@ -273,4 +302,6 @@ def get_top_foods():
     return jsonify({"foods": items[:limit]})
 
 if __name__ == '__main__':
-    app.run(host='127.0.0.1', port=5000, debug=True)
+    # 預設關閉 debug；開發時可用環境變數 FLASK_DEBUG=1 開啟
+    debug = os.environ.get("FLASK_DEBUG", "0") in ("1", "true", "True")
+    app.run(host='127.0.0.1', port=5000, debug=debug)
