@@ -1,75 +1,123 @@
 <script setup>
-import { ref, onMounted, nextTick, computed } from "vue";
+import { ref, onMounted, nextTick, computed, watch } from "vue";
 import svgPanZoom from "svg-pan-zoom";
 
 const svgObj = ref(null);
 const panzoom = ref(null);
 
 // === 狀態 ===
-const selectedCountryName = ref(null);  // 顯示用（Japan / Taiwan / Korea）
-const selectedCode = ref(null);         // API 用（JP / TW / KR）
+const selectedCountryName = ref(null);
+const selectedCode = ref(null);
 
-const countryFoods = ref([]);           // 後端回來的 food 清單
+const countryFoods = ref([]);
 const loading = ref(false);
 const errorMsg = ref("");
 
-// 只負責旗幟
 const FLAG_BY_CODE = {
   JP: "https://flagcdn.com/w320/jp.png",
   TW: "https://flagcdn.com/w320/tw.png",
   KR: "https://flagcdn.com/w320/kr.png",
-  US: "https://flagcdn.com/w320/us.png", // 美國
-  CA: "https://flagcdn.com/w320/ca.png", // 加拿大
+  US: "https://flagcdn.com/w320/us.png",
+  CA: "https://flagcdn.com/w320/ca.png",
 };
 
-
-// SVG 名稱 → 國碼
-// SVG 名稱 → 國碼
 const CODE_BY_SVG_ID = {
-  // 🇯🇵 日本
-  Japan: "JP",
-  JPN: "JP",
-  日本: "JP",
-
-  // 🇹🇼 台灣
-  Taiwan: "TW",
-  TWN: "TW",
-  臺灣: "TW",
-  台灣: "TW",
-
-  // 🇰🇷 韓國
-  Korea: "KR",
-  "South Korea": "KR",
-  "Republic of Korea": "KR",
-  KOR: "KR",
-  韓國: "KR",
-
-  // 🇺🇸 美國（多補幾個可能的名字）
-  United: "US",                    // 你的 SVG 現在顯示的就是這個
-  "United States": "US",
-  "United States of America": "US",
-  USA: "US",
-  US: "US",
-  America: "US",
-  美國: "US",
-
-  // 🇨🇦 加拿大
-  CA: "CA",
-  CAN: "CA",
-  Canada: "CA",
-  加拿大: "CA",
+  Japan: "JP", JPN: "JP", 日本: "JP",
+  Taiwan: "TW", TWN: "TW", 臺灣: "TW", 台灣: "TW",
+  Korea: "KR", "South Korea": "KR", "Republic of Korea": "KR", KOR: "KR", 韓國: "KR",
+  United: "US", "United States": "US", "United States of America": "US", USA: "US", US: "US", America: "US", 美國: "US",
+  CA: "CA", CAN: "CA", Canada: "CA", 加拿大: "CA",
 };
 
+const COUNTRY_NAMES = {
+  JP: "Japan", TW: "Taiwan", KR: "Korea", US: "United States", CA: "Canada",
+};
 
 const getFlag = () =>
   FLAG_BY_CODE[selectedCode.value] || "https://flagcdn.com/w320/un.png";
 const getFoods = () => countryFoods.value;
 
+// ====== 標籤系統 ======
+const allTags = ref([]);
+const activeTags = ref([]);
+
+async function fetchAllTags() {
+  try {
+    const res = await fetch("/api/tags");
+    if (!res.ok) return;
+    const data = await res.json();
+    allTags.value = data.tags || [];
+  } catch { /* ignore */ }
+}
+
+function toggleTag(tag) {
+  const idx = activeTags.value.indexOf(tag);
+  if (idx === -1) {
+    activeTags.value.push(tag);
+  } else {
+    activeTags.value.splice(idx, 1);
+  }
+}
+
+// ====== 搜尋 ======
+const searchQuery = ref("");
+const searchResults = ref([]);
+const searchLoading = ref(false);
+const showSearchResults = ref(false);
+let _searchTimer = null;
+
+function onSearchInput() {
+  clearTimeout(_searchTimer);
+  const q = searchQuery.value.trim();
+  if (!q) {
+    searchResults.value = [];
+    showSearchResults.value = false;
+    return;
+  }
+  _searchTimer = setTimeout(() => doSearch(q), 300);
+}
+
+async function doSearch(q) {
+  if (!q) return;
+  searchLoading.value = true;
+  showSearchResults.value = true;
+  try {
+    const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
+    if (!res.ok) throw new Error();
+    const data = await res.json();
+    searchResults.value = data.results || [];
+  } catch {
+    searchResults.value = [];
+  } finally {
+    searchLoading.value = false;
+  }
+}
+
+async function pickSearchResult(item) {
+  searchQuery.value = "";
+  searchResults.value = [];
+  showSearchResults.value = false;
+
+  selectedCode.value = item.code;
+  selectedCountryName.value = item.countryName || COUNTRY_NAMES[item.code] || item.code;
+
+  await fetchFoodsByCountry(item.code);
+  const found = countryFoods.value.find((f) => f.name === item.name);
+  if (found) {
+    await openFoodDetail(found);
+  }
+}
+
+function closeSearchDropdown(e) {
+  const el = document.querySelector(".search-bar");
+  if (el && !el.contains(e.target)) {
+    showSearchResults.value = false;
+  }
+}
+
 // ====== 收藏（localStorage） ======
 const FAVORITE_STORAGE_KEY = "worldmap_favorites_v1";
-
-// 只存「國碼::料理名」字串
-const favorites = ref([]); // string[]
+const favorites = ref([]);
 
 function favKey(code, name) {
   return `${code || "??"}::${name}`;
@@ -86,13 +134,8 @@ function loadFavorites() {
 
 function saveFavorites() {
   try {
-    localStorage.setItem(
-      FAVORITE_STORAGE_KEY,
-      JSON.stringify(favorites.value)
-    );
-  } catch {
-    // ignore
-  }
+    localStorage.setItem(FAVORITE_STORAGE_KEY, JSON.stringify(favorites.value));
+  } catch { /* ignore */ }
 }
 
 function isFavorite(code, name) {
@@ -112,13 +155,19 @@ function toggleFavorite(food) {
   saveFavorites();
 }
 
-// 「只看收藏」開關 + 清單實際顯示的內容
+// 「只看收藏」開關 + tag 篩選 + 清單實際顯示的內容
 const showFavoritesOnly = ref(false);
 const displayFoods = computed(() => {
-  if (!showFavoritesOnly.value) return countryFoods.value;
-  return countryFoods.value.filter((f) =>
-    isFavorite(selectedCode.value, f.name)
-  );
+  let list = countryFoods.value;
+  if (showFavoritesOnly.value) {
+    list = list.filter((f) => isFavorite(selectedCode.value, f.name));
+  }
+  if (activeTags.value.length > 0) {
+    list = list.filter((f) =>
+      activeTags.value.some((t) => (f.tags || []).includes(t))
+    );
+  }
+  return list;
 });
 
 // ====== 全域「我的收藏」面板 ======
@@ -135,10 +184,7 @@ async function gotoFavorite(item) {
   const code = item.code;
 
   selectedCode.value = code;
-  // 國名就直接用 code 對應的英文名就好
-  const countryName =
-    Object.entries(CODE_BY_SVG_ID).find(([, c]) => c === code)?.[0] || code;
-  selectedCountryName.value = countryName;
+  selectedCountryName.value = COUNTRY_NAMES[code] || code;
 
   await fetchFoodsByCountry(code);
   const found = countryFoods.value.find((f) => f.name === item.name);
@@ -147,9 +193,9 @@ async function gotoFavorite(item) {
   }
 }
 
-// ====== 清單容器，用來量測高度（讓 3 張卡片剛好出現在畫面內） ======
+// ====== 清單容器高度量測 ======
 const listEl = ref(null);
-const listMaxHeight = ref(null); // px
+const listMaxHeight = ref(null);
 
 function calcListMaxHeight() {
   const el = listEl.value;
@@ -157,21 +203,48 @@ function calcListMaxHeight() {
   const first = el.querySelector(".food-item");
   if (!first) return;
 
-  const firstH = first.offsetHeight; // 單一卡片實際高度
+  const firstH = first.offsetHeight;
   const styles = getComputedStyle(el);
-  const gap = parseFloat(styles.rowGap || styles.gap || "0"); // 間距
-
-  // 3 張卡片 + 2 個 gap → 剛好完整顯示三張
+  const gap = parseFloat(styles.rowGap || styles.gap || "0");
   listMaxHeight.value = firstH * 3 + gap * 2;
 }
 
-// ---------------- 取得料理清單（沒有 code 也會出卡片提示） ----------------
+// ====== URL 同步 ======
+function updateUrl(code, food) {
+  const params = new URLSearchParams();
+  if (code) params.set("country", code);
+  if (food) params.set("food", food);
+  const qs = params.toString();
+  const url = qs ? `${window.location.pathname}?${qs}` : window.location.pathname;
+  history.replaceState(null, "", url);
+}
+
+async function parseUrlAndNavigate() {
+  const params = new URLSearchParams(window.location.search);
+  const country = params.get("country");
+  const food = params.get("food");
+  if (!country) return;
+
+  selectedCode.value = country.toUpperCase();
+  selectedCountryName.value = COUNTRY_NAMES[selectedCode.value] || selectedCode.value;
+
+  await fetchFoodsByCountry(selectedCode.value);
+
+  if (food) {
+    const decoded = decodeURIComponent(food);
+    const found = countryFoods.value.find((f) => f.name === decoded);
+    if (found) {
+      await openFoodDetail(found);
+    }
+  }
+}
+
+// ====== 取得料理清單 ======
 async function fetchFoodsByCountry(code) {
   if (!code) {
     loading.value = false;
     countryFoods.value = [];
-    errorMsg.value =
-      "這個國家的人們也熱愛美食，但我們還沒新增資料，歡迎之後再來～";
+    errorMsg.value = "這個國家的人們也熱愛美食，但我們還沒新增資料，歡迎之後再來～";
     listMaxHeight.value = null;
     return;
   }
@@ -185,8 +258,7 @@ async function fetchFoodsByCountry(code) {
     const res = await fetch(`/api/foods/${code}`);
     if (!res.ok) {
       if (res.status === 404) {
-        errorMsg.value =
-          "目前尚未為這個國家設定代表美食，之後再來看看～";
+        errorMsg.value = "目前尚未為這個國家設定代表美食，之後再來看看～";
         return;
       }
       throw new Error("讀取料理清單失敗");
@@ -196,12 +268,12 @@ async function fetchFoodsByCountry(code) {
       name: f.name,
       img: f.img,
       likes: f.likes ?? 0,
+      tags: f.tags || [],
     }));
     if (!countryFoods.value.length) {
       errorMsg.value = "這個國家目前還沒有新增美食資料。";
     }
 
-    // 等 DOM 畫完，再量測高度 → 設定剛好 3 張卡片的 max-height
     await nextTick();
     calcListMaxHeight();
   } catch (e) {
@@ -213,9 +285,10 @@ async function fetchFoodsByCountry(code) {
 }
 
 // ====== TOP 5 人氣美食 ======
-const topFoods = ref([]); // [{code,name,countryName,score,likes,img}]
+const topFoods = ref([]);
 const topLoading = ref(false);
 const topError = ref("");
+const showTopPanelMobile = ref(false);
 
 async function fetchTopFoods() {
   try {
@@ -233,16 +306,12 @@ async function fetchTopFoods() {
   }
 }
 
-// 從 TOP 5 點選一個料理 → 切換到對應國家、載入清單、打開 modal
 async function jumpToTopFood(item) {
   if (!item?.code || !item?.name) return;
 
   const code = item.code;
   selectedCode.value = code;
-  selectedCountryName.value =
-    item.countryName ||
-    Object.keys(CODE_BY_SVG_ID).find((k) => CODE_BY_SVG_ID[k] === code) ||
-    code;
+  selectedCountryName.value = item.countryName || COUNTRY_NAMES[code] || code;
 
   await fetchFoodsByCountry(code);
 
@@ -295,6 +364,7 @@ onMounted(() => {
         const code = CODE_BY_SVG_ID[countryNameRaw] || null;
         selectedCode.value = code;
 
+        updateUrl(code, null);
         await fetchFoodsByCountry(code);
 
         const bbox = p.getBBox();
@@ -308,10 +378,49 @@ onMounted(() => {
     });
   });
 
-  // 初始化收藏 & TOP5
+  // 初始化收藏 & TOP5 & Tags
   loadFavorites();
   fetchTopFoods();
+  fetchAllTags();
+
+  // 解析 URL 參數自動導航
+  parseUrlAndNavigate();
+
+  // 點擊空白處關閉搜尋下拉
+  document.addEventListener("click", closeSearchDropdown);
 });
+
+// ====== 留言 token localStorage ======
+const COMMENT_TOKEN_KEY = "worldmap_comment_tokens_v1";
+
+function loadCommentTokens() {
+  try {
+    const raw = localStorage.getItem(COMMENT_TOKEN_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveCommentToken(commentId, token) {
+  const tokens = loadCommentTokens();
+  tokens[commentId] = token;
+  try {
+    localStorage.setItem(COMMENT_TOKEN_KEY, JSON.stringify(tokens));
+  } catch { /* ignore */ }
+}
+
+function getCommentToken(commentId) {
+  return loadCommentTokens()[commentId] || null;
+}
+
+function removeCommentToken(commentId) {
+  const tokens = loadCommentTokens();
+  delete tokens[commentId];
+  try {
+    localStorage.setItem(COMMENT_TOKEN_KEY, JSON.stringify(tokens));
+  } catch { /* ignore */ }
+}
 
 // 地圖歸位
 const resetMap = () => {
@@ -322,9 +431,11 @@ const resetMap = () => {
   errorMsg.value = "";
   listMaxHeight.value = null;
   showFavoritesOnly.value = false;
+  activeTags.value = [];
+  updateUrl(null, null);
 };
 
-// ===== 食物介紹 Modal（點清單卡片） =====
+// ===== 食物介紹 Modal =====
 const selectedFood = ref(null);
 const showFoodModal = ref(false);
 
@@ -335,14 +446,13 @@ const comments = ref([]);
 const posting = ref(false);
 const newUser = ref("");
 const newText = ref("");
+const commentError = ref("");
 
-// 目前 modal 這道料理是不是已收藏
 const isCurrentFoodFav = computed(() => {
   if (!selectedFood.value || !selectedCode.value) return false;
   return isFavorite(selectedCode.value, selectedFood.value.name);
 });
 
-// Google Map 查附近這道料理
 const googleMapUrl = computed(() => {
   if (!selectedFood.value) return "https://www.google.com/maps";
   const qCountry = selectedCountryName.value || selectedCode.value || "";
@@ -350,7 +460,6 @@ const googleMapUrl = computed(() => {
   return `https://www.google.com/maps/search/${q}`;
 });
 
-// 更新左側清單上的 likes
 function syncListLikes() {
   if (!selectedFood.value) return;
   const idx = countryFoods.value.findIndex(
@@ -367,9 +476,7 @@ function syncListLikes() {
 async function fetchLikes() {
   if (!selectedCode.value || !selectedFood.value) return;
   const r = await fetch(
-    `/api/food/${selectedCode.value}/${encodeURIComponent(
-      selectedFood.value.name
-    )}/likes`
+    `/api/food/${selectedCode.value}/${encodeURIComponent(selectedFood.value.name)}/likes`
   );
   const data = await r.json();
   likesCount.value = data.likes ?? 0;
@@ -381,9 +488,7 @@ async function doLike() {
   likeLoading.value = true;
   try {
     const r = await fetch(
-      `/api/food/${selectedCode.value}/${encodeURIComponent(
-        selectedFood.value.name
-      )}/like`,
+      `/api/food/${selectedCode.value}/${encodeURIComponent(selectedFood.value.name)}/like`,
       { method: "POST" }
     );
     const data = await r.json();
@@ -399,9 +504,7 @@ async function doLike() {
 async function fetchComments() {
   if (!selectedCode.value || !selectedFood.value) return;
   const r = await fetch(
-    `/api/food/${selectedCode.value}/${encodeURIComponent(
-      selectedFood.value.name
-    )}/comments`
+    `/api/food/${selectedCode.value}/${encodeURIComponent(selectedFood.value.name)}/comments`
   );
   const data = await r.json();
   comments.value = data.comments || [];
@@ -409,6 +512,7 @@ async function fetchComments() {
 
 async function submitComment() {
   if (!selectedCode.value || !selectedFood.value) return;
+  commentError.value = "";
   const payload = {
     user: newUser.value || "匿名",
     text: (newText.value || "").trim(),
@@ -417,22 +521,65 @@ async function submitComment() {
   try {
     posting.value = true;
     const r = await fetch(
-      `/api/food/${selectedCode.value}/${encodeURIComponent(
-        selectedFood.value.name
-      )}/comments`,
+      `/api/food/${selectedCode.value}/${encodeURIComponent(selectedFood.value.name)}/comments`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       }
     );
-    if (!r.ok) throw new Error("留言失敗");
     const created = await r.json();
+    if (!r.ok) {
+      commentError.value = created.error || "留言失敗";
+      return;
+    }
+    // Save delete token
+    if (created.delete_token) {
+      saveCommentToken(created.id, created.delete_token);
+    }
     comments.value.unshift(created);
     newText.value = "";
+  } catch {
+    commentError.value = "留言失敗，請稍後再試";
   } finally {
     posting.value = false;
   }
+}
+
+async function deleteComment(comment) {
+  if (!selectedCode.value || !selectedFood.value) return;
+  const token = getCommentToken(comment.id);
+  if (!token) return;
+  if (!confirm("確定要刪除這則留言嗎？")) return;
+
+  try {
+    const r = await fetch(
+      `/api/food/${selectedCode.value}/${encodeURIComponent(selectedFood.value.name)}/comments/${comment.id}`,
+      {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token }),
+      }
+    );
+    if (r.ok) {
+      comments.value = comments.value.filter((c) => c.id !== comment.id);
+      removeCommentToken(comment.id);
+    }
+  } catch { /* ignore */ }
+}
+
+async function likeComment(comment) {
+  if (!selectedCode.value || !selectedFood.value) return;
+  try {
+    const r = await fetch(
+      `/api/food/${selectedCode.value}/${encodeURIComponent(selectedFood.value.name)}/comments/${comment.id}/like`,
+      { method: "POST" }
+    );
+    const data = await r.json();
+    if (Number.isFinite(data.likes)) {
+      comment.likes = data.likes;
+    }
+  } catch { /* ignore */ }
 }
 
 async function openFoodDetail(food) {
@@ -448,23 +595,108 @@ async function openFoodDetail(food) {
       name: detail.name,
       img: detail.img,
       desc: detail.desc || "這道料理還沒有詳細介紹。",
+      tags: detail.tags || [],
     };
   } catch (e) {
     console.error(e);
     selectedFood.value = { ...food, desc: "這道料理還沒有詳細介紹。" };
   }
 
+  updateUrl(selectedCode.value, food.name);
+  commentError.value = "";
   await Promise.all([fetchLikes(), fetchComments()]);
   showFoodModal.value = true;
 }
 
 const closeFoodDetail = () => {
   showFoodModal.value = false;
+  updateUrl(selectedCode.value, null);
 };
+
+// ====== 分享功能 ======
+function getShareUrl() {
+  if (!selectedCode.value || !selectedFood.value) return window.location.href;
+  const params = new URLSearchParams();
+  params.set("country", selectedCode.value);
+  params.set("food", selectedFood.value.name);
+  return `${window.location.origin}${window.location.pathname}?${params.toString()}`;
+}
+
+async function shareFood() {
+  const url = getShareUrl();
+  const title = `${selectedFood.value?.name} - 世界美食地圖`;
+
+  if (navigator.share) {
+    try {
+      await navigator.share({ title, url });
+      return;
+    } catch { /* user cancelled or not supported */ }
+  }
+
+  // Fallback: copy to clipboard
+  try {
+    await navigator.clipboard.writeText(url);
+    alert("已複製分享連結！");
+  } catch {
+    // Final fallback
+    prompt("複製這個連結來分享：", url);
+  }
+}
+
+function shareTo(platform) {
+  const url = encodeURIComponent(getShareUrl());
+  const title = encodeURIComponent(`${selectedFood.value?.name} - 世界美食地圖`);
+  let shareUrl = "";
+
+  switch (platform) {
+    case "facebook":
+      shareUrl = `https://www.facebook.com/sharer/sharer.php?u=${url}`;
+      break;
+    case "twitter":
+      shareUrl = `https://twitter.com/intent/tweet?url=${url}&text=${title}`;
+      break;
+    case "line":
+      shareUrl = `https://social-plugins.line.me/lineit/share?url=${url}`;
+      break;
+  }
+  if (shareUrl) window.open(shareUrl, "_blank", "noopener,noreferrer");
+}
 </script>
 
 <template>
-  <div class="world-page">
+  <div class="world-page" @click="showSearchResults = false">
+    <!-- 搜尋列 -->
+    <div class="search-bar" @click.stop>
+      <input
+        type="text"
+        class="search-input"
+        placeholder="搜尋料理、標籤..."
+        v-model="searchQuery"
+        @input="onSearchInput"
+        @focus="if (searchResults.length) showSearchResults = true"
+      />
+      <div class="search-dropdown" v-if="showSearchResults">
+        <div v-if="searchLoading" class="search-status">搜尋中...</div>
+        <div v-else-if="!searchResults.length" class="search-status">沒有找到結果</div>
+        <div
+          v-else
+          class="search-result-item"
+          v-for="item in searchResults"
+          :key="item.code + '_' + item.name"
+          @click="pickSearchResult(item)"
+        >
+          <img class="search-thumb" :src="item.img" :alt="item.name" />
+          <div class="search-info">
+            <span class="search-name">{{ item.name }}</span>
+            <span class="search-country">{{ item.countryName }}</span>
+            <div class="search-tags" v-if="item.tags && item.tags.length">
+              <span class="tag-badge small" v-for="t in item.tags" :key="t">{{ t }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <button class="reset-btn" @click="resetMap">返回地圖</button>
 
     <!-- 地圖 + 左側浮動卡片 -->
@@ -476,7 +708,7 @@ const closeFoodDetail = () => {
         class="world-map"
       />
 
-      <!-- 左側美食清單卡片（浮在地圖上方，位置比較高） -->
+      <!-- 左側美食清單卡片 -->
       <transition name="slide">
         <div class="food-card" v-if="selectedCountryName">
           <div class="food-header">
@@ -491,21 +723,34 @@ const closeFoodDetail = () => {
             {{ errorMsg }}
           </div>
 
-          <!-- 收藏篩選 -->
+          <!-- 收藏篩選 + Tag chips -->
           <div
-            class="fav-filter-row"
+            class="filter-row"
             v-else-if="getFoods().length"
           >
-            <button
-              class="fav-filter"
-              :class="{ active: showFavoritesOnly }"
-              @click="showFavoritesOnly = !showFavoritesOnly"
-            >
-              只看收藏
-            </button>
+            <div class="filter-top">
+              <button
+                class="fav-filter"
+                :class="{ active: showFavoritesOnly }"
+                @click="showFavoritesOnly = !showFavoritesOnly"
+              >
+                只看收藏
+              </button>
+            </div>
+            <div class="tag-chips" v-if="allTags.length">
+              <button
+                class="tag-chip"
+                v-for="tag in allTags"
+                :key="tag"
+                :class="{ active: activeTags.includes(tag) }"
+                @click="toggleTag(tag)"
+              >
+                {{ tag }}
+              </button>
+            </div>
           </div>
 
-          <!-- 清單：3 張完整卡片，可滾動 -->
+          <!-- 清單 -->
           <div
             class="food-list"
             v-if="getFoods().length"
@@ -539,6 +784,11 @@ const closeFoodDetail = () => {
                 >
                   {{ isFavorite(selectedCode, f.name) ? "❤️" : "🤍" }}
                 </button>
+              </div>
+
+              <!-- Tag badges on card -->
+              <div class="food-tags" v-if="f.tags && f.tags.length">
+                <span class="tag-badge" v-for="t in f.tags" :key="t">{{ t }}</span>
               </div>
             </div>
           </div>
@@ -579,7 +829,7 @@ const closeFoodDetail = () => {
     </div>
 
     <!-- 右下角：本週人氣美食 TOP 5 -->
-    <div class="top-panel">
+    <div class="top-panel" :class="{ 'show-mobile': showTopPanelMobile }">
       <h3>本週人氣美食 TOP 5</h3>
       <div v-if="topLoading" class="top-status">載入中...</div>
       <div v-else-if="topError" class="top-status top-error">
@@ -607,17 +857,31 @@ const closeFoodDetail = () => {
       </ul>
     </div>
 
+    <!-- 手機版 TOP5 toggle 按鈕 -->
+    <button
+      class="top-toggle-mobile"
+      @click="showTopPanelMobile = !showTopPanelMobile"
+    >
+      🏆 TOP5
+    </button>
+
     <!-- 食物介紹 Modal -->
     <div class="modal-mask" v-if="showFoodModal" @click="closeFoodDetail">
       <div class="modal-content" @click.stop>
         <button class="close-btn" @click="closeFoodDetail">✕</button>
         <img class="modal-food-img" :src="selectedFood?.img" />
         <h2>{{ selectedFood?.name }}</h2>
+
+        <!-- Modal tag badges -->
+        <div class="modal-tags" v-if="selectedFood?.tags?.length">
+          <span class="tag-badge" v-for="t in selectedFood.tags" :key="t">{{ t }}</span>
+        </div>
+
         <p class="food-desc">
           {{ selectedFood?.desc || "這道料理還沒有詳細介紹。" }}
         </p>
 
-        <!-- 第一行：按讚 / 已獲得 / 收藏 -->
+        <!-- 按讚 / 收藏 -->
         <div class="like-row">
           <div class="like-main">
             <button
@@ -638,7 +902,7 @@ const closeFoodDetail = () => {
             </button>
           </div>
 
-          <!-- 第二行：Google Map 連結 -->
+          <!-- Google Map 連結 -->
           <a
             class="map-link"
             :href="googleMapUrl"
@@ -648,6 +912,14 @@ const closeFoodDetail = () => {
           >
             在附近找這道料理
           </a>
+        </div>
+
+        <!-- 分享列 -->
+        <div class="share-row">
+          <button class="share-btn" @click.stop="shareFood">📤 分享</button>
+          <button class="share-social fb" @click.stop="shareTo('facebook')">Facebook</button>
+          <button class="share-social tw" @click.stop="shareTo('twitter')">Twitter</button>
+          <button class="share-social line" @click.stop="shareTo('line')">LINE</button>
         </div>
 
         <div class="comment-editor" @click.stop>
@@ -663,6 +935,7 @@ const closeFoodDetail = () => {
             rows="3"
             placeholder="寫下你的看法..."
           ></textarea>
+          <div class="comment-error" v-if="commentError">{{ commentError }}</div>
           <button class="submit-btn" :disabled="posting" @click="submitComment">
             送出留言
           </button>
@@ -676,6 +949,18 @@ const closeFoodDetail = () => {
               <span> · {{ new Date(c.ts * 1000).toLocaleString() }}</span>
             </div>
             <p class="text">{{ c.text }}</p>
+            <div class="comment-actions">
+              <button class="comment-like-btn" @click.stop="likeComment(c)">
+                👍 {{ c.likes || 0 }}
+              </button>
+              <button
+                class="comment-delete-btn"
+                v-if="getCommentToken(c.id)"
+                @click.stop="deleteComment(c)"
+              >
+                刪除
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -688,7 +973,163 @@ const closeFoodDetail = () => {
   position: relative;
 }
 
-/* 地圖區，讓卡片可以絕對定位在裡面 */
+/* ===== 搜尋列 ===== */
+.search-bar {
+  position: fixed;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 340px;
+  z-index: 55;
+}
+
+.search-input {
+  width: 100%;
+  padding: 10px 16px;
+  border: 1px solid #d1d5db;
+  border-radius: 999px;
+  font-size: 15px;
+  background: rgba(255, 255, 255, 0.97);
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.12);
+  outline: none;
+  box-sizing: border-box;
+}
+
+.search-input:focus {
+  border-color: #2563eb;
+}
+
+.search-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  background: #fff;
+  border-radius: 14px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.18);
+  max-height: 320px;
+  overflow-y: auto;
+  padding: 6px 0;
+}
+
+.search-status {
+  padding: 12px 16px;
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.search-result-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  cursor: pointer;
+}
+
+.search-result-item:hover {
+  background: #eff6ff;
+}
+
+.search-thumb {
+  width: 48px;
+  height: 36px;
+  object-fit: cover;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+
+.search-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.search-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #111827;
+}
+
+.search-country {
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.search-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+
+/* ===== Tag badge ===== */
+.tag-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #dbeafe;
+  color: #1d4ed8;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.tag-badge.small {
+  padding: 1px 6px;
+  font-size: 10px;
+}
+
+/* ===== Tag chips (filter) ===== */
+.tag-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.tag-chip {
+  border: none;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  cursor: pointer;
+  background: #f3f4f6;
+  color: #374151;
+}
+
+.tag-chip.active {
+  background: #2563eb;
+  color: #fff;
+}
+
+/* Food card tags */
+.food-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 0 10px 6px;
+}
+
+/* Modal tags */
+.modal-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 4px 0 8px;
+}
+
+/* ===== Filter row ===== */
+.filter-row {
+  margin-top: 4px;
+  margin-bottom: 6px;
+}
+
+.filter-top {
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* 地圖區 */
 .map-stage {
   position: relative;
   width: 100%;
@@ -763,13 +1204,6 @@ const closeFoodDetail = () => {
 }
 
 /* 收藏篩選 */
-.fav-filter-row {
-  margin-top: 4px;
-  margin-bottom: 6px;
-  display: flex;
-  justify-content: flex-end;
-}
-
 .fav-filter {
   border: none;
   padding: 4px 10px;
@@ -784,12 +1218,12 @@ const closeFoodDetail = () => {
   color: #fff;
 }
 
-/* ===== 清單：3 張完整卡片 + 滾輪 ===== */
+/* ===== 清單 ===== */
 .food-list {
   margin-top: 4px;
   display: flex;
   flex-direction: column;
-  row-gap: 16px;   /* 卡片間距 */
+  row-gap: 16px;
 
   overflow-y: auto;
   padding-right: 6px;
@@ -816,8 +1250,6 @@ const closeFoodDetail = () => {
   display: flex;
   flex-direction: column;
   cursor: pointer;
-
-  /* 這裡改成 visible + 多留一點內距，文字就不會被裁掉 */
   overflow: visible;
   padding-bottom: 6px;
 }
@@ -850,7 +1282,7 @@ const closeFoodDetail = () => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 6px 8px 4px 10px;  /* 和圖片、下緣都多留一點距離 */
+  padding: 6px 8px 4px 10px;
 }
 
 .food-name {
@@ -1015,7 +1447,27 @@ const closeFoodDetail = () => {
   color: #dc2626;
 }
 
-/* ===== Modal 互動區塊樣式 ===== */
+/* 手機版 TOP5 toggle 按鈕 — 桌面版隱藏 */
+.top-toggle-mobile {
+  display: none;
+  position: fixed;
+  right: 12px;
+  bottom: 12px;
+  z-index: 31;
+  padding: 10px 16px;
+  border-radius: 999px;
+  border: none;
+  cursor: pointer;
+  background: #2563eb;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.2);
+  min-width: 44px;
+  min-height: 44px;
+}
+
+/* ===== Modal ===== */
 .modal-mask {
   position: fixed;
   inset: 0;
@@ -1110,7 +1562,7 @@ const closeFoodDetail = () => {
   color: #fff;
 }
 
-/* Google Map 連結：獨立一行置中 */
+/* Google Map 連結 */
 .map-link {
   display: inline-flex;
   width: 100%;
@@ -1122,8 +1574,47 @@ const closeFoodDetail = () => {
   text-decoration: none;
   background: #10b981;
   color: #fff;
+  box-sizing: border-box;
 }
 
+/* ===== 分享列 ===== */
+.share-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 6px 0 10px;
+}
+
+.share-btn {
+  border: none;
+  border-radius: 8px;
+  padding: 6px 14px;
+  cursor: pointer;
+  background: #6366f1;
+  color: #fff;
+  font-size: 13px;
+}
+
+.share-social {
+  border: none;
+  border-radius: 8px;
+  padding: 6px 10px;
+  cursor: pointer;
+  color: #fff;
+  font-size: 12px;
+}
+
+.share-social.fb {
+  background: #1877f2;
+}
+.share-social.tw {
+  background: #1da1f2;
+}
+.share-social.line {
+  background: #06c755;
+}
+
+/* ===== Comment ===== */
 .comment-editor {
   display: flex;
   flex-direction: column;
@@ -1136,7 +1627,14 @@ const closeFoodDetail = () => {
   border-radius: 8px;
   padding: 8px 10px;
   font-size: 14px;
+  box-sizing: border-box;
 }
+
+.comment-error {
+  color: #dc2626;
+  font-size: 13px;
+}
+
 .comment-list .comment-item {
   padding: 10px 0;
   border-top: 1px dashed #e5e7eb;
@@ -1148,5 +1646,41 @@ const closeFoodDetail = () => {
 .comment-list .comment-item .text {
   margin: 4px 0 0;
   white-space: pre-wrap;
+}
+
+.comment-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.comment-like-btn {
+  border: none;
+  background: #f3f4f6;
+  border-radius: 6px;
+  padding: 3px 10px;
+  cursor: pointer;
+  font-size: 12px;
+  color: #374151;
+  min-height: 28px;
+}
+
+.comment-like-btn:hover {
+  background: #e5e7eb;
+}
+
+.comment-delete-btn {
+  border: none;
+  background: #fee2e2;
+  border-radius: 6px;
+  padding: 3px 10px;
+  cursor: pointer;
+  font-size: 12px;
+  color: #dc2626;
+  min-height: 28px;
+}
+
+.comment-delete-btn:hover {
+  background: #fecaca;
 }
 </style>
