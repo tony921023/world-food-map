@@ -13,6 +13,7 @@ const props = defineProps({
   activeTags: { type: Array, default: () => [] },
   showFavoritesOnly: { type: Boolean, default: false },
   favorites: { type: Array, default: () => [] },
+  isLoggedIn: { type: Boolean, default: false },
   listMaxHeight: { type: Number, default: null },
 });
 
@@ -110,6 +111,7 @@ watch(
         <div class="food-name-row">
           <p class="food-name">{{ f.name }}</p>
           <button
+            v-if="isLoggedIn"
             class="fav-icon"
             :class="{ active: isFav(f.name) }"
             @click.stop="emit('toggle-favorite', f)"

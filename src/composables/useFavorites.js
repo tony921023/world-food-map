@@ -1,25 +1,13 @@
 import { ref, computed } from "vue";
+import { useAuth } from "./useAuth.js";
 
-const STORAGE_KEY = "worldmap_favorites_v1";
+const OLD_STORAGE_KEY = "worldmap_favorites_v1";
 
 // Singleton state shared across all components
 const favorites = ref([]);
 
 export function useFavorites() {
-  function loadFavorites() {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      favorites.value = raw ? JSON.parse(raw) : [];
-    } catch {
-      favorites.value = [];
-    }
-  }
-
-  function saveFavorites() {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(favorites.value));
-    } catch { /* ignore */ }
-  }
+  const { isLoggedIn, authHeaders } = useAuth();
 
   function favKey(code, name) {
     return `${code || "??"}::${name}`;
@@ -30,16 +18,83 @@ export function useFavorites() {
     return favorites.value.includes(favKey(code, name));
   }
 
-  function toggleFavorite(code, name) {
-    if (!code || !name) return;
-    const key = favKey(code, name);
-    const idx = favorites.value.indexOf(key);
-    if (idx === -1) {
-      favorites.value.push(key);
-    } else {
-      favorites.value.splice(idx, 1);
+  async function loadFavorites() {
+    if (!isLoggedIn.value) {
+      favorites.value = [];
+      return;
     }
-    saveFavorites();
+    try {
+      const res = await fetch("/api/favorites", { headers: authHeaders() });
+      if (!res.ok) {
+        favorites.value = [];
+        return;
+      }
+      const data = await res.json();
+      favorites.value = (data.favorites || []).map(
+        (f) => favKey(f.country_code, f.food_name)
+      );
+    } catch {
+      favorites.value = [];
+    }
+  }
+
+  async function toggleFavorite(code, name) {
+    if (!code || !name || !isLoggedIn.value) return;
+    const key = favKey(code, name);
+    const wasFav = favorites.value.includes(key);
+
+    // Optimistic update
+    if (wasFav) {
+      favorites.value = favorites.value.filter((k) => k !== key);
+    } else {
+      favorites.value = [...favorites.value, key];
+    }
+
+    try {
+      const res = await fetch("/api/favorites", {
+        method: wasFav ? "DELETE" : "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify({ country_code: code, food_name: name }),
+      });
+      if (!res.ok) {
+        // Revert on failure
+        await loadFavorites();
+      }
+    } catch {
+      await loadFavorites();
+    }
+  }
+
+  async function migrateLocalStorage() {
+    if (!isLoggedIn.value) return;
+    try {
+      const raw = localStorage.getItem(OLD_STORAGE_KEY);
+      if (!raw) return;
+      const oldFavs = JSON.parse(raw);
+      if (!Array.isArray(oldFavs) || !oldFavs.length) return;
+
+      const items = oldFavs
+        .map((k) => {
+          const [code, name] = k.split("::");
+          return code && name ? { country_code: code, food_name: name } : null;
+        })
+        .filter(Boolean);
+
+      if (!items.length) return;
+
+      const res = await fetch("/api/favorites/batch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify({ items }),
+      });
+
+      if (res.ok) {
+        localStorage.removeItem(OLD_STORAGE_KEY);
+        await loadFavorites();
+      }
+    } catch {
+      // Silently ignore migration errors
+    }
   }
 
   const myFavorites = computed(() =>
@@ -53,9 +108,9 @@ export function useFavorites() {
     favorites,
     myFavorites,
     loadFavorites,
-    saveFavorites,
     isFavorite,
     toggleFavorite,
+    migrateLocalStorage,
     favKey,
   };
 }

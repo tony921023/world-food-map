@@ -2,12 +2,19 @@
 import { ref, onMounted, nextTick, computed } from "vue";
 import svgPanZoom from "svg-pan-zoom";
 import { useFavorites } from "../composables/useFavorites.js";
+import { useAuth } from "../composables/useAuth.js";
 
 import SearchBar from "./SearchBar.vue";
 import FoodListPanel from "./FoodListPanel.vue";
 import FoodDetailModal from "./FoodDetailModal.vue";
 import FavoritesPanel from "./FavoritesPanel.vue";
 import TopFoodsPanel from "./TopFoodsPanel.vue";
+import AuthModal from "./AuthModal.vue";
+import UserMenu from "./UserMenu.vue";
+
+// === Auth ===
+const { isLoggedIn, checkAuth } = useAuth();
+const showAuthModal = ref(false);
 
 // === SVG map refs ===
 const svgObj = ref(null);
@@ -65,7 +72,7 @@ function toggleTag(tag) {
 }
 
 // === Favorites composable ===
-const { favorites, myFavorites, loadFavorites, isFavorite, toggleFavorite } = useFavorites();
+const { favorites, myFavorites, loadFavorites, isFavorite, toggleFavorite, migrateLocalStorage } = useFavorites();
 
 const showFavoritesOnly = ref(false);
 const showFavPanel = ref(false);
@@ -82,6 +89,21 @@ const displayFoods = computed(() => {
   }
   return list;
 });
+
+// === Auth events ===
+async function handleAuthed() {
+  await migrateLocalStorage();
+  await loadFavorites();
+}
+
+async function handleLoggedOut() {
+  favorites.value = [];
+  showFavPanel.value = false;
+}
+
+function handleNeedAuth() {
+  showAuthModal.value = true;
+}
 
 // === URL sync ===
 function updateUrl(code, food) {
@@ -235,12 +257,20 @@ function closeFoodDetail() {
 }
 
 function handleToggleFavoriteModal() {
+  if (!isLoggedIn.value) {
+    showAuthModal.value = true;
+    return;
+  }
   if (selectedFood.value) {
     toggleFavorite(selectedCode.value, selectedFood.value.name);
   }
 }
 
 function handleToggleFavoriteList(food) {
+  if (!isLoggedIn.value) {
+    showAuthModal.value = true;
+    return;
+  }
   toggleFavorite(selectedCode.value, food.name);
 }
 
@@ -285,7 +315,14 @@ const resetMap = () => {
 };
 
 // === Mount ===
-onMounted(() => {
+onMounted(async () => {
+  // Check auth and load favorites
+  const authed = await checkAuth();
+  if (authed) {
+    await migrateLocalStorage();
+    await loadFavorites();
+  }
+
   if (!svgObj.value) return;
 
   svgObj.value.addEventListener("load", () => {
@@ -333,7 +370,6 @@ onMounted(() => {
     });
   });
 
-  loadFavorites();
   fetchAllTags();
   parseUrlAndNavigate();
 });
@@ -341,6 +377,7 @@ onMounted(() => {
 
 <template>
   <div class="world-page">
+    <UserMenu @open-auth="showAuthModal = true" @logged-out="handleLoggedOut" />
     <SearchBar @pick="handleSearchPick" />
 
     <button class="reset-btn" @click="resetMap">返回地圖</button>
@@ -367,6 +404,7 @@ onMounted(() => {
           :active-tags="activeTags"
           :show-favorites-only="showFavoritesOnly"
           :favorites="favorites"
+          :is-logged-in="isLoggedIn"
           :list-max-height="listMaxHeight"
           @toggle-fav-filter="showFavoritesOnly = !showFavoritesOnly"
           @toggle-tag="toggleTag"
@@ -381,8 +419,10 @@ onMounted(() => {
       :favorites="favorites"
       :my-favorites="myFavorites"
       :show="showFavPanel"
+      :is-logged-in="isLoggedIn"
       @toggle-panel="showFavPanel = !showFavPanel"
       @goto="gotoFavorite"
+      @need-auth="handleNeedAuth"
     />
 
     <TopFoodsPanel @jump="jumpToTopFood" />
@@ -395,9 +435,17 @@ onMounted(() => {
       :likes-count="likesCount"
       :like-loading="likeLoading"
       :is-favorite="isCurrentFoodFav"
+      :is-logged-in="isLoggedIn"
       @close="closeFoodDetail"
       @like="doLike"
       @toggle-favorite="handleToggleFavoriteModal"
+      @need-auth="handleNeedAuth"
+    />
+
+    <AuthModal
+      :show="showAuthModal"
+      @close="showAuthModal = false"
+      @authed="handleAuthed"
     />
   </div>
 </template>

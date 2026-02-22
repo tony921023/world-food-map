@@ -3,35 +3,51 @@ defineProps({
   favorites: { type: Array, default: () => [] },
   myFavorites: { type: Array, default: () => [] },
   show: { type: Boolean, default: false },
+  isLoggedIn: { type: Boolean, default: false },
 });
 
-const emit = defineEmits(["toggle-panel", "goto"]);
+const emit = defineEmits(["toggle-panel", "goto", "need-auth"]);
+
+function handleToggle() {
+  emit("toggle-panel");
+}
 </script>
 
 <template>
   <!-- Toggle button -->
-  <button class="fav-global-toggle" @click="emit('toggle-panel')">
+  <button class="fav-global-toggle" @click="handleToggle">
     我的收藏（{{ myFavorites.length }}）
   </button>
 
   <!-- Favorites panel -->
   <div v-if="show" class="fav-global-panel">
     <h3>我的收藏</h3>
-    <ul class="fav-global-list">
-      <li
-        v-for="item in myFavorites"
-        :key="item.code + '::' + item.name"
-        class="fav-global-item"
-        @click="emit('goto', item)"
-      >
-        <span class="fav-dot">❤️</span>
-        <span class="fav-name">{{ item.name }}</span>
-        <span class="fav-country">{{ item.code }}</span>
-      </li>
-      <li v-if="!myFavorites.length" class="fav-global-empty">
-        還沒有收藏任何料理
-      </li>
-    </ul>
+
+    <template v-if="!isLoggedIn">
+      <p class="fav-login-hint">
+        請先
+        <a href="#" @click.prevent="emit('need-auth')">登入</a>
+        以使用收藏功能
+      </p>
+    </template>
+
+    <template v-else>
+      <ul class="fav-global-list">
+        <li
+          v-for="item in myFavorites"
+          :key="item.code + '::' + item.name"
+          class="fav-global-item"
+          @click="emit('goto', item)"
+        >
+          <span class="fav-dot">❤️</span>
+          <span class="fav-name">{{ item.name }}</span>
+          <span class="fav-country">{{ item.code }}</span>
+        </li>
+        <li v-if="!myFavorites.length" class="fav-global-empty">
+          還沒有收藏任何料理
+        </li>
+      </ul>
+    </template>
   </div>
 </template>
 
@@ -68,6 +84,17 @@ const emit = defineEmits(["toggle-panel", "goto"]);
 .fav-global-panel h3 {
   margin: 0 0 6px;
   font-size: 15px;
+}
+
+.fav-login-hint {
+  font-size: 13px;
+  color: #6b7280;
+  margin: 8px 0;
+}
+.fav-login-hint a {
+  color: #2563eb;
+  text-decoration: none;
+  font-weight: 600;
 }
 
 .fav-global-list {

@@ -1,12 +1,15 @@
 from __future__ import annotations
-import os, json, tempfile, threading, secrets, hashlib
+import os, json, tempfile, threading, secrets, hashlib, datetime, functools
 from collections import defaultdict
 from pathlib import Path
 from time import time
 from urllib.parse import unquote
 from json import JSONDecodeError
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, g
 from flask_cors import CORS
+from flask_sqlalchemy import SQLAlchemy
+from werkzeug.security import generate_password_hash, check_password_hash
+import jwt
 
 # ---------------- 路徑設定 ----------------
 BASE_DIR = Path(__file__).resolve().parent
@@ -21,7 +24,69 @@ COMMENT_LIKES_JSON  = DATA_DIR / "comment_likes.json"
 # ---------------- Flask ----------------
 app = Flask(__name__, static_folder='static', static_url_path='/static')
 app.config['JSON_AS_ASCII'] = False
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get(
+    'DATABASE_URL',
+    'postgresql://webfinal:webfinal@localhost:5433/webfinal'
+)
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+JWT_SECRET = os.environ.get('JWT_SECRET', 'dev-secret-please-change-in-production!!')
+JWT_EXP_DAYS = 7
+
 CORS(app, resources={r"/api/*": {"origins": "*"}})
+db = SQLAlchemy(app)
+
+# ---------------- 資料庫模型 ----------------
+class User(db.Model):
+    __tablename__ = 'users'
+    id = db.Column(db.Integer, primary_key=True)
+    email = db.Column(db.String(255), unique=True, nullable=False)
+    password_hash = db.Column(db.Text, nullable=False)
+    display_name = db.Column(db.String(100), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.datetime.utcnow)
+    favorites = db.relationship('Favorite', backref='user', lazy='dynamic')
+
+class Favorite(db.Model):
+    __tablename__ = 'favorites'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    country_code = db.Column(db.String(10), nullable=False)
+    food_name = db.Column(db.String(255), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.datetime.utcnow)
+    __table_args__ = (
+        db.UniqueConstraint('user_id', 'country_code', 'food_name', name='uq_user_fav'),
+    )
+
+# ---------------- JWT 工具 ----------------
+def _create_token(user: User) -> str:
+    payload = {
+        'sub': str(user.id),
+        'exp': datetime.datetime.utcnow() + datetime.timedelta(days=JWT_EXP_DAYS),
+        'iat': datetime.datetime.utcnow(),
+    }
+    return jwt.encode(payload, JWT_SECRET, algorithm='HS256')
+
+def _get_current_user() -> User | None:
+    auth = request.headers.get('Authorization', '')
+    if not auth.startswith('Bearer '):
+        return None
+    token = auth[7:]
+    try:
+        payload = jwt.decode(token, JWT_SECRET, algorithms=['HS256'],
+                             options={"verify_exp": True})
+        return db.session.get(User, int(payload['sub']))
+    except Exception:
+        return None
+
+def login_required(fn):
+    @functools.wraps(fn)
+    def wrapper(*args, **kwargs):
+        user = _get_current_user()
+        if not user:
+            return jsonify({'error': '請先登入'}), 401
+        g.user = user
+        return fn(*args, **kwargs)
+    return wrapper
 
 # ---------------- 共用工具 ----------------
 def _atomic_write(path: Path, obj):
@@ -132,6 +197,135 @@ def _resolve_country_block(code: str, data: dict):
     if cu in data:
         return cu, cu, data[cu]
     return cu, None, None
+
+# ================ 認證 API ================
+@app.route('/api/auth/register', methods=['POST'])
+def auth_register():
+    body = request.get_json(silent=True) or {}
+    email = (body.get('email') or '').strip().lower()
+    password = body.get('password') or ''
+    display_name = (body.get('display_name') or '').strip()
+
+    if not email or '@' not in email:
+        return jsonify({'error': '請輸入有效的 email'}), 400
+    if len(password) < 6:
+        return jsonify({'error': '密碼至少需要 6 個字元'}), 400
+    if not display_name:
+        return jsonify({'error': '請輸入顯示名稱'}), 400
+    if len(display_name) > 50:
+        return jsonify({'error': '顯示名稱不能超過 50 個字'}), 400
+
+    if User.query.filter_by(email=email).first():
+        return jsonify({'error': '此 email 已被註冊'}), 409
+
+    user = User(
+        email=email,
+        password_hash=generate_password_hash(password),
+        display_name=display_name[:50],
+    )
+    db.session.add(user)
+    db.session.commit()
+
+    token = _create_token(user)
+    return jsonify({
+        'token': token,
+        'user': {'id': user.id, 'email': user.email, 'display_name': user.display_name},
+    }), 201
+
+@app.route('/api/auth/login', methods=['POST'])
+def auth_login():
+    body = request.get_json(silent=True) or {}
+    email = (body.get('email') or '').strip().lower()
+    password = body.get('password') or ''
+
+    user = User.query.filter_by(email=email).first()
+    if not user or not check_password_hash(user.password_hash, password):
+        return jsonify({'error': 'email 或密碼錯誤'}), 401
+
+    token = _create_token(user)
+    return jsonify({
+        'token': token,
+        'user': {'id': user.id, 'email': user.email, 'display_name': user.display_name},
+    })
+
+@app.route('/api/auth/me')
+def auth_me():
+    user = _get_current_user()
+    if not user:
+        return jsonify({'error': '未登入'}), 401
+    return jsonify({
+        'user': {'id': user.id, 'email': user.email, 'display_name': user.display_name},
+    })
+
+# ================ 收藏 API ================
+@app.route('/api/favorites', methods=['GET'])
+@login_required
+def get_favorites():
+    favs = g.user.favorites.order_by(Favorite.created_at.desc()).all()
+    return jsonify({
+        'favorites': [
+            {'country_code': f.country_code, 'food_name': f.food_name}
+            for f in favs
+        ]
+    })
+
+@app.route('/api/favorites', methods=['POST'])
+@login_required
+def add_favorite():
+    body = request.get_json(silent=True) or {}
+    code = (body.get('country_code') or '').strip().upper()
+    name = (body.get('food_name') or '').strip()
+    if not code or not name:
+        return jsonify({'error': '缺少 country_code 或 food_name'}), 400
+
+    existing = Favorite.query.filter_by(
+        user_id=g.user.id, country_code=code, food_name=name
+    ).first()
+    if existing:
+        return jsonify({'ok': True, 'message': '已收藏'})
+
+    fav = Favorite(user_id=g.user.id, country_code=code, food_name=name)
+    db.session.add(fav)
+    db.session.commit()
+    return jsonify({'ok': True}), 201
+
+@app.route('/api/favorites', methods=['DELETE'])
+@login_required
+def remove_favorite():
+    body = request.get_json(silent=True) or {}
+    code = (body.get('country_code') or '').strip().upper()
+    name = (body.get('food_name') or '').strip()
+    if not code or not name:
+        return jsonify({'error': '缺少 country_code 或 food_name'}), 400
+
+    fav = Favorite.query.filter_by(
+        user_id=g.user.id, country_code=code, food_name=name
+    ).first()
+    if fav:
+        db.session.delete(fav)
+        db.session.commit()
+    return jsonify({'ok': True})
+
+@app.route('/api/favorites/batch', methods=['POST'])
+@login_required
+def batch_add_favorites():
+    """批次匯入收藏（用於 localStorage 遷移）"""
+    body = request.get_json(silent=True) or {}
+    items = body.get('items', [])
+    added = 0
+    for item in items:
+        code = (item.get('country_code') or '').strip().upper()
+        name = (item.get('food_name') or '').strip()
+        if not code or not name:
+            continue
+        existing = Favorite.query.filter_by(
+            user_id=g.user.id, country_code=code, food_name=name
+        ).first()
+        if not existing:
+            db.session.add(Favorite(user_id=g.user.id, country_code=code, food_name=name))
+            added += 1
+    db.session.commit()
+    return jsonify({'ok': True, 'added': added})
 
 # ---------------- 健康檢查 & 開發工具 ----------------
 @app.route('/api/ping')
@@ -382,6 +576,10 @@ def get_top_foods():
         limit = 5
 
     return jsonify({"foods": items[:limit]})
+
+# ---------------- 啟動 ----------------
+with app.app_context():
+    db.create_all()
 
 if __name__ == '__main__':
     debug = os.environ.get("FLASK_DEBUG", "0") in ("1", "true", "True")

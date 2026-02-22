@@ -11,9 +11,10 @@ const props = defineProps({
   likesCount: { type: Number, default: 0 },
   likeLoading: { type: Boolean, default: false },
   isFavorite: { type: Boolean, default: false },
+  isLoggedIn: { type: Boolean, default: false },
 });
 
-const emit = defineEmits(["close", "like", "toggle-favorite"]);
+const emit = defineEmits(["close", "like", "toggle-favorite", "need-auth"]);
 
 const googleMapUrl = computed(() => {
   if (!props.food) return "https://www.google.com/maps";
@@ -21,6 +22,14 @@ const googleMapUrl = computed(() => {
   const q = encodeURIComponent(`${qCountry} ${props.food.name} 美食`);
   return `https://www.google.com/maps/search/${q}`;
 });
+
+function handleFavClick() {
+  if (!props.isLoggedIn) {
+    emit("need-auth");
+    return;
+  }
+  emit("toggle-favorite");
+}
 </script>
 
 <template>
@@ -53,9 +62,9 @@ const googleMapUrl = computed(() => {
           <button
             class="fav-btn"
             :class="{ active: isFavorite }"
-            @click.stop="emit('toggle-favorite')"
+            @click.stop="handleFavClick"
           >
-            {{ isFavorite ? "❤️ 已收藏" : "🤍 收藏" }}
+            {{ !isLoggedIn ? '🤍 收藏' : isFavorite ? '❤️ 已收藏' : '🤍 收藏' }}
           </button>
         </div>
 
