@@ -109,27 +109,26 @@ onUnmounted(() => {
 
 <style scoped>
 .search-bar {
-  position: fixed;
-  top: 16px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 340px;
-  z-index: 55;
+  position: relative;
+  width: 100%;
+  max-width: 400px;
 }
 
 .search-input {
   width: 100%;
-  padding: 10px 16px;
-  border: 1px solid #d1d5db;
+  padding: 8px 16px;
+  border: 1.5px solid rgba(148,163,184,0.4);
   border-radius: 999px;
-  font-size: 15px;
-  background: rgba(255, 255, 255, 0.97);
-  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.12);
+  font-size: 14px;
+  background: rgba(255,255,255,0.95);
+  box-shadow: 0 1px 4px rgba(15,23,42,0.08);
   outline: none;
   box-sizing: border-box;
+  transition: border-color 0.2s, box-shadow 0.2s;
 }
 .search-input:focus {
   border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37,99,235,0.12);
 }
 
 .search-dropdown {
@@ -219,15 +218,8 @@ onUnmounted(() => {
   background: #eff6ff;
 }
 
-@media (max-width: 1024px) {
-  .search-bar {
-    width: 260px;
-  }
-}
-
-@media (max-width: 768px) {
-  .search-bar {
-    width: calc(100% - 80px);
-  }
+/* 在 top-bar 內寬度由父容器控制，不需固定 px */
+.search-dropdown {
+  z-index: 200;
 }
 </style>

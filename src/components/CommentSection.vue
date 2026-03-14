@@ -35,16 +35,16 @@ async function fetchCaptcha() {
 
 // ── 冷卻計時 ──────────────────────────────────────────────────────
 const cooldownSeconds = ref(0);
-let _cooldownTimer: number | null = null;
+let _cooldownTimer = null;
 
-function startCooldown(seconds: number) {
+function startCooldown(seconds) {
   cooldownSeconds.value = seconds;
   if (_cooldownTimer) clearInterval(_cooldownTimer);
   _cooldownTimer = setInterval(() => {
     if (cooldownSeconds.value > 0) {
       cooldownSeconds.value--;
     } else {
-      clearInterval(_cooldownTimer!);
+      clearInterval(_cooldownTimer);
       _cooldownTimer = null;
       if (!isLoggedIn.value) fetchCaptcha();
     }
@@ -83,7 +83,7 @@ async function submitComment() {
     return;
   }
 
-  const payload: Record<string, unknown> = { text: (newText.value || "").trim() };
+  const payload = { text: (newText.value || "").trim() };
   if (!isLoggedIn.value) {
     payload.user = newUser.value || "匿名";
     // 前端驗證碼欄位
@@ -103,7 +103,7 @@ async function submitComment() {
 
   try {
     posting.value = true;
-    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    const headers = { "Content-Type": "application/json" };
     if (isLoggedIn.value) Object.assign(headers, authHeaders());
 
     const r = await fetch(
@@ -141,8 +141,8 @@ async function deleteComment(comment) {
   if (!props.code || !props.foodName) return;
   if (!confirm("確定要刪除這則留言嗎？")) return;
   try {
-    const headers: Record<string, string> = { "Content-Type": "application/json" };
-    const body: Record<string, unknown>   = {};
+    const headers = { "Content-Type": "application/json" };
+    const body = {};
     if (isLoggedIn.value && user.value && comment.user_id === user.value.id) {
       Object.assign(headers, authHeaders());
     } else {

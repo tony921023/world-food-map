@@ -396,15 +396,25 @@ onMounted(async () => {
 
 <template>
   <div class="world-page">
-    <UserMenu
-      @open-auth="showAuthModal = true"
-      @logged-out="handleLoggedOut"
-      @open-my-comments="showMyComments = true"
-      @open-profile="showProfile = true"
-    />
-    <SearchBar @pick="handleSearchPick" @search="handleSearchOpen" />
-
-    <button class="reset-btn" @click="resetMap">返回地圖</button>
+    <!-- 頂部導覽列 -->
+    <div class="top-bar">
+      <div class="top-bar-left">
+        <span class="app-logo">🌍</span>
+        <span class="app-title">World Food Explorer</span>
+      </div>
+      <div class="top-bar-center">
+        <SearchBar @pick="handleSearchPick" @search="handleSearchOpen" />
+      </div>
+      <div class="top-bar-right">
+        <button class="reset-btn" @click="resetMap">↩ 返回</button>
+        <UserMenu
+          @open-auth="showAuthModal = true"
+          @logged-out="handleLoggedOut"
+          @open-my-comments="showMyComments = true"
+          @open-profile="showProfile = true"
+        />
+      </div>
+    </div>
 
     <div class="map-stage">
       <object
@@ -493,39 +503,5 @@ onMounted(async () => {
 </template>
 
 <style>
-.world-page {
-  position: relative;
-}
-
-.map-stage {
-  position: relative;
-  width: 100%;
-  max-width: 2000px;
-  margin: 0 auto;
-}
-
-.world-map {
-  width: 100%;
-  height: auto;
-  display: block;
-  margin: 0 auto;
-}
-
-.reset-btn {
-  position: fixed;
-  top: 20px;
-  right: 40px;
-  z-index: 50;
-}
-
-@media (max-width: 768px) {
-  .reset-btn {
-    top: 12px;
-    right: 12px;
-    font-size: 14px;
-    padding: 8px 12px;
-    min-width: 44px;
-    min-height: 44px;
-  }
-}
+/* WorldMap 的全域 style 已移至 src/style.css 的 top-bar / world-page */
 </style>

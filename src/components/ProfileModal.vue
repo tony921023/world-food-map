@@ -37,7 +37,7 @@ async function saveProfile() {
   saveMsg.value   = "";
   saveError.value = "";
 
-  const body: Record<string, string> = {};
+  const body = {};
   const trimmedName = editName.value.trim();
   if (trimmedName && trimmedName !== user.value?.display_name) {
     body.display_name = trimmedName;
