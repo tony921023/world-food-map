@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, nextTick, computed, watch } from "vue";
+import { ref, onMounted, computed, watch } from "vue";
 import svgPanZoom from "svg-pan-zoom";
 import { useFavorites } from "../composables/useFavorites.js";
 import { useAuth } from "../composables/useAuth.js";
@@ -402,16 +402,9 @@ function setupSvg() {
 
 // === Mount ===
 onMounted(async () => {
-  // ★ 先同步附上 SVG load 監聽器，避免 await 期間 SVG 已載完而錯過事件
-  if (svgObj.value) {
-    svgObj.value.addEventListener("load", setupSvg);
-    // 若 SVG 已從快取載入完成，直接執行
-    if (svgObj.value.contentDocument?.querySelector?.("svg")) {
-      setupSvg();
-    }
-  }
+  // SVG 初始化由 watch(svgObj) 統一處理（含首次掛載與切回地圖後重新掛載）
 
-  // 再做非同步 auth 操作
+  // 做非同步 auth 操作
   const authed = await checkAuth();
   if (authed) {
     await migrateLocalStorage();
@@ -423,14 +416,13 @@ onMounted(async () => {
   parseUrlAndNavigate();
 });
 
-// 每次切回地圖視圖時，重新附加 SVG 監聽器
-// （v-if 讓 <object> 重新建立，舊的 addEventListener 已消失）
-watch(currentView, async (view) => {
-  if (view !== "map") return;
-  await nextTick(); // 等 Vue 把 <object> 渲染進 DOM
-  if (!svgObj.value) return;
-  svgObj.value.addEventListener("load", setupSvg);
-  if (svgObj.value.contentDocument?.querySelector?.("svg")) {
+// 每次 <object> 被掛載（v-if 重新建立）時重新初始化 SVG
+// 用 watch(svgObj) 取代 watch(currentView)+nextTick，
+// 因為 mode="out-in" 動畫結束後才插入 DOM，nextTick 太早執行
+watch(svgObj, (el) => {
+  if (!el) return;
+  el.addEventListener("load", setupSvg);
+  if (el.contentDocument?.querySelector?.("svg")) {
     setupSvg();
   }
 });
