@@ -285,11 +285,10 @@ const countryLabel = computed(() =>
 .food-card {
   background: var(--c-surface);
   border-radius: var(--r-xl);
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--shadow-md);
   overflow: hidden;
   cursor: pointer;
   transition: transform var(--dur), box-shadow var(--dur);
-  border: 1px solid var(--c-border);
 }
 .food-card:hover {
   transform: translateY(-5px);

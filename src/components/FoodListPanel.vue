@@ -235,8 +235,7 @@ watch(
   scroll-snap-align: start;
   background: var(--c-surface);
   border-radius: var(--r-lg);
-  box-shadow: var(--shadow-sm);
-  border: 1px solid var(--c-border);
+  box-shadow: 0 2px 10px rgba(15,23,42,0.1);
   display: flex;
   flex-direction: column;
   cursor: pointer;
