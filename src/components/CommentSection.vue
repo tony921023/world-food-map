@@ -2,6 +2,7 @@
 import { ref, watch, onUnmounted, computed } from "vue";
 import { useCommentTokens } from "../composables/useCommentTokens.js";
 import { useAuth } from "../composables/useAuth.js";
+import { useToast } from "../composables/useToast.js";
 
 const props = defineProps({
   code:     { type: String, default: "" },
@@ -10,12 +11,18 @@ const props = defineProps({
 
 const { saveCommentToken, getCommentToken, removeCommentToken } = useCommentTokens();
 const { isLoggedIn, user, authHeaders } = useAuth();
+const { success: toastSuccess, error: toastError } = useToast();
 
 const comments      = ref([]);
 const newUser       = ref("");
 const newText       = ref("");
 const posting       = ref(false);
 const commentError  = ref("");
+
+// 回覆狀態
+const replyingTo    = ref(null);   // { id, user } 正在回覆的留言
+const replyText     = ref("");
+const replyPosting  = ref(false);
 
 // ── 驗證碼 ────────────────────────────────────────────────────────
 const captchaQuestion = ref("");
@@ -121,14 +128,58 @@ async function submitComment() {
     }
 
     if (created.delete_token) saveCommentToken(created.id, created.delete_token);
-    comments.value.unshift(created);
+    comments.value.unshift({ ...created, replies: [] });
     newText.value = "";
-    // 成功後重刷驗證碼（給下次留言用）
+    toastSuccess("留言送出成功！");
     if (!isLoggedIn.value) await fetchCaptcha();
   } catch {
     commentError.value = "留言失敗，請稍後再試";
+    toastError("留言失敗，請稍後再試");
   } finally {
     posting.value = false;
+  }
+}
+
+function startReply(comment) {
+  replyingTo.value = { id: comment.id, user: comment.user };
+  replyText.value = "";
+}
+
+function cancelReply() {
+  replyingTo.value = null;
+  replyText.value = "";
+}
+
+async function submitReply(parentComment) {
+  if (!replyText.value.trim() || replyPosting.value) return;
+  replyPosting.value = true;
+  try {
+    const headers = { "Content-Type": "application/json" };
+    if (isLoggedIn.value) Object.assign(headers, authHeaders());
+    const payload = {
+      text: replyText.value.trim(),
+      parent_id: parentComment.id,
+    };
+    if (!isLoggedIn.value) payload.user = newUser.value || "匿名";
+
+    const r = await fetch(
+      `/api/food/${props.code}/${encodeURIComponent(props.foodName)}/comments`,
+      { method: "POST", headers, body: JSON.stringify(payload) }
+    );
+    const created = await r.json();
+    if (!r.ok) {
+      toastError(created.error || "回覆失敗");
+      return;
+    }
+    if (!parentComment.replies) parentComment.replies = [];
+    parentComment.replies.push(created);
+    replyText.value = "";
+    replyingTo.value = null;
+    toastSuccess("回覆成功！");
+  } catch {
+    toastError("回覆失敗，請稍後再試");
+  } finally {
+    replyPosting.value = false;
   }
 }
 
@@ -247,16 +298,19 @@ watch(
     </div>
 
     <div class="comment-list" v-if="comments.length">
-      <h3 style="margin: 10px 0 6px">留言</h3>
+      <h3 style="margin: 10px 0 6px">留言（{{ comments.length }}）</h3>
       <div class="comment-item" v-for="c in comments" :key="c.id">
         <div class="meta">
-          <strong>{{ c.user || "匿名" }}</strong>
-          <span> · {{ new Date(c.ts * 1000).toLocaleString() }}</span>
+          <strong class="meta-user">{{ c.user || "匿名" }}</strong>
+          <span class="meta-time"> · {{ new Date(c.ts * 1000).toLocaleString() }}</span>
         </div>
         <p class="text">{{ c.text }}</p>
         <div class="comment-actions">
           <button class="comment-like-btn" @click.stop="likeComment(c)">
-            &#128077; {{ c.likes || 0 }}
+            👍 {{ c.likes || 0 }}
+          </button>
+          <button class="reply-btn" @click.stop="startReply(c)">
+            💬 回覆
           </button>
           <button
             class="comment-delete-btn"
@@ -265,6 +319,47 @@ watch(
           >
             刪除
           </button>
+        </div>
+
+        <!-- 回覆輸入框 -->
+        <div class="reply-editor" v-if="replyingTo?.id === c.id" @click.stop>
+          <div class="reply-hint">回覆 <strong>{{ c.user }}</strong></div>
+          <textarea
+            v-model="replyText"
+            class="comment-input text reply-input"
+            rows="2"
+            placeholder="寫下回覆..."
+            autofocus
+          ></textarea>
+          <div class="reply-actions">
+            <button class="submit-btn reply-submit-btn" :disabled="replyPosting || !replyText.trim()" @click="submitReply(c)">
+              {{ replyPosting ? "送出中..." : "送出回覆" }}
+            </button>
+            <button class="cancel-reply-btn" @click="cancelReply">取消</button>
+          </div>
+        </div>
+
+        <!-- 巢狀回覆 -->
+        <div class="replies" v-if="c.replies && c.replies.length">
+          <div class="reply-item" v-for="r in c.replies" :key="r.id">
+            <div class="meta">
+              <strong class="meta-user">{{ r.user || "匿名" }}</strong>
+              <span class="meta-time"> · {{ new Date(r.ts * 1000).toLocaleString() }}</span>
+            </div>
+            <p class="text">{{ r.text }}</p>
+            <div class="comment-actions">
+              <button class="comment-like-btn" @click.stop="likeComment(r)">
+                👍 {{ r.likes || 0 }}
+              </button>
+              <button
+                class="comment-delete-btn"
+                v-if="canDelete(r)"
+                @click.stop="deleteComment(r)"
+              >
+                刪除
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -415,6 +510,73 @@ watch(
   transition: background var(--dur);
 }
 .comment-delete-btn:hover { background: #fecaca; }
+
+.meta-user { color: var(--c-text); font-size: var(--text-base); }
+.meta-time  { color: var(--c-text-3); font-size: var(--text-xs); }
+
+.reply-btn {
+  border: none;
+  background: transparent;
+  color: var(--c-primary);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  cursor: pointer;
+  padding: 3px 8px;
+  border-radius: var(--r-sm);
+  transition: background var(--dur);
+}
+.reply-btn:hover { background: var(--c-hover-blue); }
+
+.reply-editor {
+  margin-top: 8px;
+  padding: 10px 12px;
+  background: var(--c-hover);
+  border-radius: var(--r-md);
+  border-left: 3px solid var(--c-primary);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.reply-hint {
+  font-size: var(--text-sm);
+  color: var(--c-text-3);
+}
+.reply-input { resize: none; }
+.reply-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.reply-submit-btn {
+  padding: 5px 14px;
+  font-size: var(--text-sm);
+}
+.cancel-reply-btn {
+  border: none;
+  background: transparent;
+  color: var(--c-text-3);
+  font-size: var(--text-sm);
+  cursor: pointer;
+  padding: 5px 10px;
+  border-radius: var(--r-sm);
+}
+.cancel-reply-btn:hover { color: var(--c-text-2); background: var(--c-hover); }
+
+/* 巢狀回覆區 */
+.replies {
+  margin-top: 8px;
+  margin-left: 16px;
+  border-left: 2px solid var(--c-border);
+  padding-left: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+.reply-item {
+  padding: 8px 0;
+  border-top: 1px solid var(--c-hover);
+}
+.reply-item:first-child { border-top: none; }
 
 @media (max-width: 768px) {
   .submit-btn, .comment-like-btn, .comment-delete-btn {

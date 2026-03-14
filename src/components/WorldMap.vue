@@ -3,6 +3,7 @@ import { ref, onMounted, nextTick, computed, watch } from "vue";
 import svgPanZoom from "svg-pan-zoom";
 import { useFavorites } from "../composables/useFavorites.js";
 import { useAuth } from "../composables/useAuth.js";
+import { useToast } from "../composables/useToast.js";
 
 import SearchBar from "./SearchBar.vue";
 import CountryPage from "./CountryPage.vue";
@@ -15,6 +16,9 @@ import MyCommentsModal from "./MyCommentsModal.vue";
 import ProfileModal from "./ProfileModal.vue";
 import SearchResultsPage from "./SearchResultsPage.vue";
 
+// === Toast ===
+const { success: toastSuccess, error: toastError, info: toastInfo } = useToast();
+
 // === Auth ===
 const { isLoggedIn, checkAuth } = useAuth();
 const showAuthModal   = ref(false);
@@ -24,6 +28,7 @@ const showProfile     = ref(false);
 // === 頁面視圖 ===
 // "map" = 地圖首頁  |  "country" = 國家料理頁
 const currentView = ref("map");
+const pageTransition = ref("page-forward");
 
 // === Search Results ===
 const showSearchResults  = ref(false);
@@ -124,12 +129,14 @@ async function handleAuthed() {
   await migrateLocalStorage();
   await loadFavorites();
   await loadFavoriteLists();
+  toastSuccess("登入成功，歡迎回來！");
 }
 
 async function handleLoggedOut() {
   favorites.value = [];
   showFavPanel.value = false;
   showMyComments.value = false;
+  toastInfo("已登出");
 }
 
 function handleNeedAuth() {
@@ -297,7 +304,9 @@ function handleToggleFavoriteModal() {
     return;
   }
   if (selectedFood.value) {
+    const wasFav = isFavorite(selectedCode.value, selectedFood.value.name);
     toggleFavorite(selectedCode.value, selectedFood.value.name);
+    toastSuccess(wasFav ? "已從收藏移除" : "已加入收藏 ❤️");
   }
 }
 
@@ -306,7 +315,9 @@ function handleToggleFavoriteList(food) {
     showAuthModal.value = true;
     return;
   }
+  const wasFav = isFavorite(selectedCode.value, food.name);
   toggleFavorite(selectedCode.value, food.name);
+  toastSuccess(wasFav ? "已從收藏移除" : "已加入收藏 ❤️");
 }
 
 // === Navigation helpers ===
@@ -332,7 +343,8 @@ async function jumpToTopFood(item) {
 
 // === Reset map ===
 const resetMap = () => {
-  panzoom.value = null;   // 清除舊實例，讓 setupSvg() 可以重新初始化
+  panzoom.value = null;
+  pageTransition.value = "page-back";
   currentView.value = "map";
   selectedCountryName.value = null;
   selectedCode.value = null;
@@ -382,7 +394,7 @@ function setupSvg() {
 
       updateUrl(code, null);
       await fetchFoodsByCountry(code);
-      // 切換到國家料理頁面
+      pageTransition.value = "page-forward";
       currentView.value = "country";
     });
   });
@@ -427,56 +439,58 @@ watch(currentView, async (view) => {
 <template>
   <div class="world-page">
 
-    <!-- ══ 地圖視圖 ══ -->
-    <template v-if="currentView === 'map'">
-      <!-- 頂部導覽列 -->
-      <div class="top-bar">
-        <div class="top-bar-left">
-          <span class="app-logo">🌍</span>
-          <span class="app-title">World Food Explorer</span>
+    <Transition :name="pageTransition" mode="out-in">
+      <!-- ══ 地圖視圖 ══ -->
+      <div v-if="currentView === 'map'" key="map">
+        <!-- 頂部導覽列 -->
+        <div class="top-bar">
+          <div class="top-bar-left">
+            <span class="app-logo">🌍</span>
+            <span class="app-title">World Food Explorer</span>
+          </div>
+          <div class="top-bar-center">
+            <SearchBar @pick="handleSearchPick" @search="handleSearchOpen" />
+          </div>
+          <div class="top-bar-right">
+            <UserMenu
+              @open-auth="showAuthModal = true"
+              @logged-out="handleLoggedOut"
+              @open-my-comments="showMyComments = true"
+              @open-profile="showProfile = true"
+            />
+          </div>
         </div>
-        <div class="top-bar-center">
-          <SearchBar @pick="handleSearchPick" @search="handleSearchOpen" />
+
+        <!-- 首頁 Hero 提示 -->
+        <div class="map-hero">
+          <h1 class="hero-headline">探索全球代表料理</h1>
+          <p class="hero-sub">點擊地圖上的國家，發現各地美食故事</p>
         </div>
-        <div class="top-bar-right">
-          <UserMenu
-            @open-auth="showAuthModal = true"
-            @logged-out="handleLoggedOut"
-            @open-my-comments="showMyComments = true"
-            @open-profile="showProfile = true"
+
+        <div class="map-stage">
+          <object
+            ref="svgObj"
+            data="/world.svg"
+            type="image/svg+xml"
+            class="world-map"
           />
         </div>
-      </div>
 
-      <!-- 首頁 Hero 提示 -->
-      <div class="map-hero">
-        <h1 class="hero-headline">探索全球代表料理</h1>
-        <p class="hero-sub">點擊地圖上的國家，發現各地美食故事</p>
-      </div>
-
-      <div class="map-stage">
-        <object
-          ref="svgObj"
-          data="/world.svg"
-          type="image/svg+xml"
-          class="world-map"
+        <FavoritesPanel
+          :show="showFavPanel"
+          :is-logged-in="isLoggedIn"
+          @toggle-panel="showFavPanel = !showFavPanel"
+          @goto="gotoFavorite"
+          @need-auth="handleNeedAuth"
         />
+
+        <TopFoodsPanel @jump="jumpToTopFood" />
       </div>
 
-      <FavoritesPanel
-        :show="showFavPanel"
-        :is-logged-in="isLoggedIn"
-        @toggle-panel="showFavPanel = !showFavPanel"
-        @goto="gotoFavorite"
-        @need-auth="handleNeedAuth"
-      />
-
-      <TopFoodsPanel @jump="jumpToTopFood" />
-    </template>
-
-    <!-- ══ 國家料理頁面 ══ -->
-    <template v-else-if="currentView === 'country'">
+      <!-- ══ 國家料理頁面 ══ -->
       <CountryPage
+        v-else-if="currentView === 'country'"
+        key="country"
         :country-name="selectedCountryName"
         :code="selectedCode"
         :flag-url="getFlag()"
@@ -495,7 +509,7 @@ watch(currentView, async (view) => {
         @toggle-favorite="handleToggleFavoriteList"
         @open-food="openFoodDetail"
       />
-    </template>
+    </Transition>
 
     <FoodDetailModal
       :show="showFoodModal"
@@ -511,6 +525,7 @@ watch(currentView, async (view) => {
       @like="doLike"
       @toggle-favorite="handleToggleFavoriteModal"
       @need-auth="handleNeedAuth"
+      @open-food="openFoodDetail"
     />
 
     <AuthModal
@@ -542,5 +557,15 @@ watch(currentView, async (view) => {
 </template>
 
 <style>
-/* WorldMap 的全域 style 已移至 src/style.css 的 top-bar / world-page */
+/* 頁面過場：進入國家頁（向前） */
+.page-forward-enter-active { transition: all 0.35s cubic-bezier(0.25,0.46,0.45,0.94); }
+.page-forward-leave-active { transition: all 0.25s ease-in; }
+.page-forward-enter-from   { opacity: 0; transform: translateX(48px); }
+.page-forward-leave-to     { opacity: 0; transform: translateX(-48px); }
+
+/* 頁面過場：返回地圖（向後） */
+.page-back-enter-active { transition: all 0.35s cubic-bezier(0.25,0.46,0.45,0.94); }
+.page-back-leave-active { transition: all 0.25s ease-in; }
+.page-back-enter-from   { opacity: 0; transform: translateX(-48px); }
+.page-back-leave-to     { opacity: 0; transform: translateX(48px); }
 </style>

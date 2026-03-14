@@ -565,8 +565,22 @@ def post_rating(code, name):
 @app.route("/api/food/<code>/<name>/comments")
 def get_comments(code, name):
     key = _kstr(code, name)
-    lst = sorted(comments_store.get(key, []), key=lambda x: x.get("id", 0), reverse=True)
-    return jsonify({"comments": lst})
+    all_cmts = comments_store.get(key, [])
+    # Build nested structure: top-level + replies
+    reply_map = {}
+    top_level = []
+    for c in all_cmts:
+        c_out = {k: v for k, v in c.items() if k != "delete_token"}
+        c_out.setdefault("replies", [])
+        pid = c.get("parent_id")
+        if pid:
+            reply_map.setdefault(pid, []).append(c_out)
+        else:
+            top_level.append(c_out)
+    for c in top_level:
+        c["replies"] = sorted(reply_map.get(c["id"], []), key=lambda x: x.get("id", 0))
+    top_level.sort(key=lambda x: x.get("id", 0), reverse=True)
+    return jsonify({"comments": top_level})
 
 @app.route("/api/food/<code>/<name>/comments", methods=["POST"])
 def post_comment(code, name):
@@ -621,6 +635,9 @@ def post_comment(code, name):
         "likes":   0,
         "user_id": u.id if u else None,
     }
+    parent_id = body.get("parent_id")
+    if parent_id is not None:
+        item["parent_id"] = int(parent_id)
     if anon:
         item["delete_token"] = secrets.token_hex(16)
 
@@ -769,6 +786,44 @@ def get_top_foods():
     except ValueError:
         limit = 5
     return jsonify({"foods": items[:limit]})
+
+@app.route("/api/food/<code>/<name>/related")
+def get_related_foods(code, name):
+    data = _load_foods_json()
+    code_up, country_name, block = _resolve_country_block(code, data)
+    target = unquote(name).strip()
+    current_tags = set()
+    if block:
+        for f in block.get("foods", []):
+            if f.get("name") == target:
+                current_tags = set(f.get("tags", []))
+                break
+    results = []
+    for c, cn in COUNTRY_MAP.items():
+        b = data.get(cn) or data.get(c)
+        if not b:
+            continue
+        for f in b.get("foods", []):
+            if c == code_up and f.get("name") == target:
+                continue
+            ftags = set(f.get("tags", []))
+            common = len(current_tags & ftags)
+            if common == 0 and current_tags:
+                continue
+            key = _kstr(c, f["name"])
+            stats = _rating_stats(key)
+            results.append({
+                "code":        c,
+                "countryName": cn,
+                "name":        f["name"],
+                "img":         f.get("img"),
+                "tags":        f.get("tags", []),
+                "likes":       _like_count(key),
+                "avg_rating":  stats["avg"],
+                "common_tags": common,
+            })
+    results.sort(key=lambda x: (-x["common_tags"], -x["likes"]))
+    return jsonify({"related": results[:4]})
 
 # ──────────────────────────────────────────────────────────────────
 if __name__ == "__main__":

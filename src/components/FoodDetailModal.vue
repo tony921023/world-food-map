@@ -1,5 +1,5 @@
 <script setup>
-import { computed, watch } from "vue";
+import { ref, computed, watch } from "vue";
 import ShareButtons from "./ShareButtons.vue";
 import CommentSection from "./CommentSection.vue";
 import StarRating from "./StarRating.vue";
@@ -17,7 +17,7 @@ const props = defineProps({
   isLoggedIn: { type: Boolean, default: false },
 });
 
-const emit = defineEmits(["close", "like", "toggle-favorite", "need-auth"]);
+const emit = defineEmits(["close", "like", "toggle-favorite", "need-auth", "open-food"]);
 
 const { getRating, fetchRating, submitRating } = useRatings();
 
@@ -57,6 +57,29 @@ function handleFavClick() {
   }
   emit("toggle-favorite");
 }
+
+// === 你可能也喜歡 ===
+const related = ref([]);
+
+async function fetchRelated() {
+  if (!props.code || !props.food?.name) return;
+  try {
+    const res = await fetch(
+      `/api/food/${props.code}/${encodeURIComponent(props.food.name)}/related`
+    );
+    if (!res.ok) return;
+    const data = await res.json();
+    related.value = data.related || [];
+  } catch { /* ignore */ }
+}
+
+watch(
+  () => [props.show, props.food?.name],
+  ([show]) => {
+    if (show) fetchRelated();
+    else related.value = [];
+  }
+);
 </script>
 
 <template>
@@ -117,6 +140,27 @@ function handleFavClick() {
 
       <!-- Share -->
       <ShareButtons :code="code" :food-name="food?.name || ''" />
+
+      <!-- 你可能也喜歡 -->
+      <div class="related-section" v-if="related.length">
+        <h3 class="related-title">你可能也喜歡</h3>
+        <div class="related-grid">
+          <div
+            class="related-card"
+            v-for="r in related"
+            :key="r.name"
+            @click="emit('open-food', r)"
+          >
+            <img class="related-img" :src="r.img" :alt="r.name" />
+            <div class="related-info">
+              <span class="related-name">{{ r.name }}</span>
+              <div class="related-tags" v-if="r.tags?.length">
+                <span class="related-tag" v-for="t in r.tags.slice(0,2)" :key="t">{{ t }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
 
       <!-- Comments -->
       <CommentSection :code="code" :food-name="food?.name || ''" />
@@ -251,6 +295,64 @@ function handleFavClick() {
   transition: background var(--dur);
 }
 .map-link:hover { background: #059669; }
+
+.related-section {
+  margin: 14px 0 6px;
+}
+.related-title {
+  font-size: var(--text-base);
+  font-weight: 700;
+  color: var(--c-text);
+  margin: 0 0 10px;
+}
+.related-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+.related-card {
+  border-radius: var(--r-lg);
+  overflow: hidden;
+  border: 1px solid var(--c-border);
+  cursor: pointer;
+  transition: transform var(--dur), box-shadow var(--dur);
+  background: var(--c-surface);
+}
+.related-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+.related-img {
+  width: 100%;
+  height: 90px;
+  object-fit: cover;
+  display: block;
+}
+.related-info {
+  padding: 6px 8px 8px;
+}
+.related-name {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--c-text);
+  display: block;
+  margin-bottom: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.related-tags {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.related-tag {
+  font-size: 10px;
+  background: var(--c-hover);
+  color: var(--c-text-2);
+  border-radius: var(--r-full);
+  padding: 1px 6px;
+}
 
 @media (max-width: 1024px) {
   .modal-content { width: 420px; }
