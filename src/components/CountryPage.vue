@@ -26,7 +26,9 @@ const emit = defineEmits([
 
 function isFav(name) {
   if (!props.code || !name) return false;
-  return props.favorites.includes(`${props.code}::${name}`);
+  return props.favorites.some(
+    (f) => f.country_code === props.code.toUpperCase() && f.food_name === name
+  );
 }
 
 const COUNTRY_LABELS = {

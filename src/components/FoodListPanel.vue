@@ -29,8 +29,9 @@ const listEl = ref(null);
 
 function isFav(name) {
   if (!props.code || !name) return false;
-  const key = `${props.code}::${name}`;
-  return props.favorites.includes(key);
+  return props.favorites.some(
+    (f) => f.country_code === props.code.toUpperCase() && f.food_name === name
+  );
 }
 
 function calcListMaxHeight() {
