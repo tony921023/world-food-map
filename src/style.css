@@ -93,15 +93,16 @@ button:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
 }
 
 .app-logo {
-  font-size: 22px;
+  font-size: 28px;
   line-height: 1;
 }
 
 .app-title {
-  font-size: 15px;
-  font-weight: 700;
+  font-size: 18px;
+  font-weight: 800;
   color: #1e293b;
   white-space: nowrap;
+  letter-spacing: -0.3px;
 }
 
 .top-bar-center {
@@ -121,6 +122,42 @@ button:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
 .world-page {
   position: relative;
   /* top-bar 用 fixed + pointer-events:none，地圖直接從 top:0 開始 */
+}
+
+/* ── 首頁 Hero 提示 ──────────────────────────────────────────────── */
+.map-hero {
+  position: absolute;
+  top: 70px;
+  left: 50%;
+  transform: translateX(-50%);
+  text-align: center;
+  z-index: 10;
+  pointer-events: none;
+  /* 讓下方地圖可穿透點擊 */
+}
+
+.hero-headline {
+  font-size: 32px;
+  font-weight: 800;
+  color: #0f172a;
+  letter-spacing: -0.5px;
+  margin: 0 0 6px;
+  text-shadow: 0 2px 12px rgba(255,255,255,0.9);
+  white-space: nowrap;
+}
+
+.hero-sub {
+  font-size: 15px;
+  color: #475569;
+  margin: 0;
+  font-weight: 500;
+  text-shadow: 0 1px 6px rgba(255,255,255,0.8);
+}
+
+@media (max-width: 768px) {
+  .map-hero { top: 60px; }
+  .hero-headline { font-size: 20px; white-space: normal; padding: 0 16px; }
+  .hero-sub { font-size: 13px; }
 }
 
 .map-stage {

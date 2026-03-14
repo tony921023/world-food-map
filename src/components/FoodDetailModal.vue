@@ -11,6 +11,7 @@ const props = defineProps({
   code: { type: String, default: "" },
   countryName: { type: String, default: "" },
   likesCount: { type: Number, default: 0 },
+  hasLiked: { type: Boolean, default: false },
   likeLoading: { type: Boolean, default: false },
   isFavorite: { type: Boolean, default: false },
   isLoggedIn: { type: Boolean, default: false },
@@ -87,12 +88,13 @@ function handleFavClick() {
         <div class="like-main">
           <button
             class="like-btn"
+            :class="{ liked: hasLiked }"
             :disabled="likeLoading"
             @click.stop="emit('like')"
           >
-            👍 按讚
+            {{ hasLiked ? '👍 已按讚' : '👍 按讚' }}
           </button>
-          <span class="likes">已獲得 {{ likesCount }} 個讚</span>
+          <span class="likes">{{ likesCount }} 個讚</span>
           <button
             class="fav-btn"
             :class="{ active: isFavorite }"
@@ -200,13 +202,25 @@ function handleFavClick() {
 }
 
 .like-btn {
-  border: none;
-  border-radius: 8px;
-  padding: 6px 12px;
+  border: 2px solid #2563eb;
+  border-radius: 999px;
+  padding: 7px 18px;
   cursor: pointer;
+  background: #fff;
+  color: #2563eb;
+  font-size: 14px;
+  font-weight: 600;
+  transition: all 0.15s;
+}
+.like-btn:hover:not([disabled]) {
+  background: #eff6ff;
+}
+.like-btn.liked {
   background: #2563eb;
   color: #fff;
-  font-size: 14px;
+}
+.like-btn.liked:hover:not([disabled]) {
+  background: #1d4ed8;
 }
 .like-btn[disabled] {
   opacity: 0.6;

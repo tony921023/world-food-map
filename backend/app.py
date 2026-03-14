@@ -463,7 +463,7 @@ def get_country_foods(code):
         enriched.append({
             "name":         fname,
             "img":          f.get("img"),
-            "likes":        int(likes_store.get(key, 0)),
+            "likes":        _like_count(key),
             "tags":         f.get("tags", []),
             "avg_rating":   stats["avg"],
             "rating_count": stats["count"],
@@ -483,23 +483,53 @@ def get_food_detail(code, name):
             return jsonify(f)
     return jsonify({"error": "Food not found"}), 404
 
-# ── 按讚 ───────────────────────────────────────────────────────────
+# ── 按讚（每人限一次，可取消） ────────────────────────────────────
+
+def _like_entry(key: str) -> dict:
+    """取得 likes_store 中的 entry，相容舊格式（純整數）"""
+    raw = likes_store.get(key, 0)
+    if isinstance(raw, int):
+        return {"count": raw, "liked_by": []}
+    return raw
+
+def _liker_id(u) -> str:
+    """識別目前操作者（登入用 user:id，否則用 ip:addr）"""
+    if u:
+        return f"user:{u.id}"
+    return f"ip:{request.remote_addr or 'unknown'}"
+
+def _like_count(key: str) -> int:
+    return int(_like_entry(key).get("count", 0))
+
 @app.route("/api/food/<code>/<name>/likes")
 def get_likes(code, name):
-    key = _kstr(code, name)
-    return jsonify({"likes": int(likes_store.get(key, 0))})
+    key   = _kstr(code, name)
+    entry = _like_entry(key)
+    u     = _current_user()
+    liked = _liker_id(u) in entry.get("liked_by", [])
+    return jsonify({"likes": int(entry.get("count", 0)), "liked": liked})
 
 @app.route("/api/food/<code>/<name>/like", methods=["POST"])
 def post_like(code, name):
-    key = _kstr(code, name)
-    ok, retry = _rate_ok("like", key)
-    if not ok:
-        return jsonify({"error": "操作太頻繁，請稍後再試",
-                        "retry_after": retry,
-                        "likes": int(likes_store.get(key, 0))}), 429
-    likes_store[key] = int(likes_store.get(key, 0)) + 1
+    key   = _kstr(code, name)
+    u     = _current_user()
+    lk    = _liker_id(u)
+    entry = _like_entry(key)
+    liked_by = list(entry.get("liked_by", []))
+    count    = int(entry.get("count", 0))
+
+    if lk in liked_by:          # 已按讚 → 取消
+        liked_by.remove(lk)
+        count = max(0, count - 1)
+        liked = False
+    else:                        # 未按讚 → 新增
+        liked_by.append(lk)
+        count += 1
+        liked = True
+
+    likes_store[key] = {"count": count, "liked_by": liked_by}
     _save_json(LIKES_JSON, likes_store)
-    return jsonify({"likes": likes_store[key]})
+    return jsonify({"likes": count, "liked": liked})
 
 # ── 評分（1-5 星） ─────────────────────────────────────────────────
 @app.route("/api/food/<code>/<name>/rating")
@@ -669,7 +699,7 @@ def search():
             ]):
                 continue
             key   = _kstr(code, fname)
-            likes = int(likes_store.get(key, 0))
+            likes = _like_count(key)
             stats = _rating_stats(key)
             if min_rating > 0 and stats["avg"] < min_rating:
                 continue
@@ -718,7 +748,7 @@ def get_top_foods():
             if not fname:
                 continue
             key   = _kstr(code, fname)
-            likes = int(likes_store.get(key, 0))
+            likes = _like_count(key)
             stats = _rating_stats(key)
             score = likes + (stats["avg"] * stats["count"] * 1.5)
             if likes <= 0 and stats["count"] == 0:

@@ -210,6 +210,7 @@ async function fetchFoodsByCountry(code) {
 const selectedFood = ref(null);
 const showFoodModal = ref(false);
 const likesCount = ref(0);
+const hasLiked = ref(false);
 const likeLoading = ref(false);
 
 const isCurrentFoodFav = computed(() => {
@@ -237,6 +238,7 @@ async function fetchLikes() {
   );
   const data = await r.json();
   likesCount.value = data.likes ?? 0;
+  hasLiked.value = data.liked ?? false;
   syncListLikes();
 }
 
@@ -251,6 +253,7 @@ async function doLike() {
     const data = await r.json();
     if (Number.isFinite(data.likes)) {
       likesCount.value = data.likes;
+      hasLiked.value = data.liked ?? false;
       syncListLikes();
     }
   } finally {
@@ -445,6 +448,12 @@ watch(currentView, async (view) => {
         </div>
       </div>
 
+      <!-- 首頁 Hero 提示 -->
+      <div class="map-hero">
+        <h1 class="hero-headline">探索全球代表料理</h1>
+        <p class="hero-sub">點擊地圖上的國家，發現各地美食故事</p>
+      </div>
+
       <div class="map-stage">
         <object
           ref="svgObj"
@@ -494,6 +503,7 @@ watch(currentView, async (view) => {
       :code="selectedCode"
       :country-name="selectedCountryName"
       :likes-count="likesCount"
+      :has-liked="hasLiked"
       :like-loading="likeLoading"
       :is-favorite="isCurrentFoodFav"
       :is-logged-in="isLoggedIn"
