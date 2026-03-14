@@ -1,6 +1,7 @@
 <script setup>
 import { ref, watch } from "vue";
 import { useCommentTokens } from "../composables/useCommentTokens.js";
+import { useAuth } from "../composables/useAuth.js";
 
 const props = defineProps({
   code: { type: String, default: "" },
@@ -8,6 +9,7 @@ const props = defineProps({
 });
 
 const { saveCommentToken, getCommentToken, removeCommentToken } = useCommentTokens();
+const { isLoggedIn, user, authHeaders } = useAuth();
 
 const comments = ref([]);
 const newUser = ref("");
@@ -32,17 +34,23 @@ async function submitComment() {
   if (!props.code || !props.foodName) return;
   commentError.value = "";
   const payload = {
-    user: newUser.value || "匿名",
     text: (newText.value || "").trim(),
   };
+  if (!isLoggedIn.value) {
+    payload.user = newUser.value || "匿名";
+  }
   if (!payload.text) return;
   try {
     posting.value = true;
+    const headers = { "Content-Type": "application/json" };
+    if (isLoggedIn.value) {
+      Object.assign(headers, authHeaders());
+    }
     const r = await fetch(
       `/api/food/${props.code}/${encodeURIComponent(props.foodName)}/comments`,
       {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify(payload),
       }
     );
@@ -63,19 +71,38 @@ async function submitComment() {
   }
 }
 
+function canDelete(comment) {
+  // Logged-in user can delete their own comments
+  if (isLoggedIn.value && user.value && comment.user_id === user.value.id) {
+    return true;
+  }
+  // Or has delete token
+  return !!getCommentToken(comment.id);
+}
+
 async function deleteComment(comment) {
   if (!props.code || !props.foodName) return;
-  const token = getCommentToken(comment.id);
-  if (!token) return;
   if (!confirm("確定要刪除這則留言嗎？")) return;
 
   try {
+    const headers = { "Content-Type": "application/json" };
+    const body = {};
+
+    if (isLoggedIn.value && user.value && comment.user_id === user.value.id) {
+      // Use auth header for own comments
+      Object.assign(headers, authHeaders());
+    } else {
+      const token = getCommentToken(comment.id);
+      if (!token) return;
+      body.token = token;
+    }
+
     const r = await fetch(
       `/api/food/${props.code}/${encodeURIComponent(props.foodName)}/comments/${comment.id}`,
       {
         method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token }),
+        headers,
+        body: JSON.stringify(body),
       }
     );
     if (r.ok) {
@@ -112,12 +139,20 @@ watch(
 <template>
   <div class="comment-section">
     <div class="comment-editor" @click.stop>
-      <input
-        v-model="newUser"
-        class="comment-input name"
-        type="text"
-        placeholder="你的名字（可留空，預設匿名）"
-      />
+      <!-- Show name input only for anonymous users -->
+      <template v-if="isLoggedIn && user">
+        <div class="comment-as">
+          以 <strong>{{ user.display_name }}</strong> 的身分留言
+        </div>
+      </template>
+      <template v-else>
+        <input
+          v-model="newUser"
+          class="comment-input name"
+          type="text"
+          placeholder="你的名字（可留空，預設匿名）"
+        />
+      </template>
       <textarea
         v-model="newText"
         class="comment-input text"
@@ -140,11 +175,11 @@ watch(
         <p class="text">{{ c.text }}</p>
         <div class="comment-actions">
           <button class="comment-like-btn" @click.stop="likeComment(c)">
-            👍 {{ c.likes || 0 }}
+            &#128077; {{ c.likes || 0 }}
           </button>
           <button
             class="comment-delete-btn"
-            v-if="getCommentToken(c.id)"
+            v-if="canDelete(c)"
             @click.stop="deleteComment(c)"
           >
             刪除
@@ -161,6 +196,15 @@ watch(
   flex-direction: column;
   gap: 8px;
   margin: 10px 0 16px;
+}
+
+.comment-as {
+  font-size: 13px;
+  color: #4b5563;
+  padding: 6px 10px;
+  background: #f0fdf4;
+  border-radius: 8px;
+  border: 1px solid #bbf7d0;
 }
 
 .comment-input {

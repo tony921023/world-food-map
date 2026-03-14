@@ -124,3 +124,4 @@ favorites (id, user_id FK, country_code, food_name, created_at, UNIQUE(user_id, 
 - **JWT_SECRET**：環境變數 `JWT_SECRET`（預設 dev-secret-change-in-production）
 - **DATABASE_URL**：環境變數 `DATABASE_URL`（預設 postgresql://webfinal:webfinal@localhost:5432/webfinal）
 - 支援國家：日本 (JP)、台灣 (TW)、韓國 (KR)、美國 (US)、加拿大 (CA)
+

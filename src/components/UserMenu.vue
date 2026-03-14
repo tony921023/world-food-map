@@ -3,7 +3,7 @@ import { useAuth } from "../composables/useAuth.js";
 
 const { user, isLoggedIn, logout } = useAuth();
 
-const emit = defineEmits(["open-auth"]);
+const emit = defineEmits(["open-auth", "logged-out", "open-my-comments"]);
 
 function handleLogout() {
   logout();
@@ -15,6 +15,7 @@ function handleLogout() {
   <div class="user-menu">
     <template v-if="isLoggedIn">
       <span class="user-name">{{ user?.display_name }}</span>
+      <button class="my-comments-btn" @click="emit('open-my-comments')">我的留言</button>
       <button class="logout-btn" @click="handleLogout">登出</button>
     </template>
     <template v-else>
@@ -45,7 +46,8 @@ function handleLogout() {
 }
 
 .login-btn,
-.logout-btn {
+.logout-btn,
+.my-comments-btn {
   border: none;
   padding: 6px 14px;
   border-radius: 999px;
@@ -64,6 +66,11 @@ function handleLogout() {
   color: #374151;
 }
 
+.my-comments-btn {
+  background: #dbeafe;
+  color: #2563eb;
+}
+
 @media (max-width: 768px) {
   .user-menu {
     top: 12px;
@@ -71,7 +78,8 @@ function handleLogout() {
     left: 12px;
   }
   .login-btn,
-  .logout-btn {
+  .logout-btn,
+  .my-comments-btn {
     min-width: 44px;
     min-height: 44px;
     display: inline-flex;

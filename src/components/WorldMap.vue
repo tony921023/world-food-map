@@ -11,10 +11,12 @@ import FavoritesPanel from "./FavoritesPanel.vue";
 import TopFoodsPanel from "./TopFoodsPanel.vue";
 import AuthModal from "./AuthModal.vue";
 import UserMenu from "./UserMenu.vue";
+import MyCommentsModal from "./MyCommentsModal.vue";
 
 // === Auth ===
 const { isLoggedIn, checkAuth } = useAuth();
 const showAuthModal = ref(false);
+const showMyComments = ref(false);
 
 // === SVG map refs ===
 const svgObj = ref(null);
@@ -72,7 +74,7 @@ function toggleTag(tag) {
 }
 
 // === Favorites composable ===
-const { favorites, myFavorites, loadFavorites, isFavorite, toggleFavorite, migrateLocalStorage } = useFavorites();
+const { favorites, myFavorites, loadFavorites, loadFavoriteLists, isFavorite, toggleFavorite, migrateLocalStorage } = useFavorites();
 
 const showFavoritesOnly = ref(false);
 const showFavPanel = ref(false);
@@ -94,11 +96,13 @@ const displayFoods = computed(() => {
 async function handleAuthed() {
   await migrateLocalStorage();
   await loadFavorites();
+  await loadFavoriteLists();
 }
 
 async function handleLoggedOut() {
   favorites.value = [];
   showFavPanel.value = false;
+  showMyComments.value = false;
 }
 
 function handleNeedAuth() {
@@ -321,6 +325,7 @@ onMounted(async () => {
   if (authed) {
     await migrateLocalStorage();
     await loadFavorites();
+    await loadFavoriteLists();
   }
 
   if (!svgObj.value) return;
@@ -377,7 +382,7 @@ onMounted(async () => {
 
 <template>
   <div class="world-page">
-    <UserMenu @open-auth="showAuthModal = true" @logged-out="handleLoggedOut" />
+    <UserMenu @open-auth="showAuthModal = true" @logged-out="handleLoggedOut" @open-my-comments="showMyComments = true" />
     <SearchBar @pick="handleSearchPick" />
 
     <button class="reset-btn" @click="resetMap">返回地圖</button>
@@ -416,8 +421,6 @@ onMounted(async () => {
     </div>
 
     <FavoritesPanel
-      :favorites="favorites"
-      :my-favorites="myFavorites"
       :show="showFavPanel"
       :is-logged-in="isLoggedIn"
       @toggle-panel="showFavPanel = !showFavPanel"
@@ -446,6 +449,12 @@ onMounted(async () => {
       :show="showAuthModal"
       @close="showAuthModal = false"
       @authed="handleAuthed"
+    />
+
+    <MyCommentsModal
+      :show="showMyComments"
+      @close="showMyComments = false"
+      @goto="gotoFavorite"
     />
   </div>
 </template>
