@@ -47,8 +47,13 @@ export function useFavorites() {
   }
 
   async function toggleFavorite(code, name) {
-    if (!code || !name || !isLoggedIn.value) return;
+    console.log("[Fav] toggleFavorite called", { code, name, isLoggedIn: isLoggedIn.value });
+    if (!code || !name || !isLoggedIn.value) {
+      console.warn("[Fav] 跳出：", { code, name, loggedIn: isLoggedIn.value });
+      return;
+    }
     const wasFav = isFavorite(code, name);
+    console.log("[Fav] wasFav =", wasFav);
 
     // Optimistic update
     if (wasFav) {
@@ -68,13 +73,16 @@ export function useFavorites() {
         headers: { "Content-Type": "application/json", ...authHeaders() },
         body: JSON.stringify({ country_code: code, food_name: name }),
       });
+      const data = await res.json().catch(() => ({}));
+      console.log("[Fav] API 回應", res.status, data);
       if (!res.ok) {
+        console.error("[Fav] API 失敗，重新載入");
         await loadFavorites();
       } else if (!wasFav) {
-        // Reload to get real id
         await loadFavorites();
       }
-    } catch {
+    } catch (e) {
+      console.error("[Fav] 網路錯誤", e);
       await loadFavorites();
     }
   }
