@@ -5,7 +5,7 @@ import { useFavorites } from "../composables/useFavorites.js";
 import { useAuth } from "../composables/useAuth.js";
 
 import SearchBar from "./SearchBar.vue";
-import FoodListPanel from "./FoodListPanel.vue";
+import CountryPage from "./CountryPage.vue";
 import FoodDetailModal from "./FoodDetailModal.vue";
 import FavoritesPanel from "./FavoritesPanel.vue";
 import TopFoodsPanel from "./TopFoodsPanel.vue";
@@ -20,6 +20,10 @@ const { isLoggedIn, checkAuth } = useAuth();
 const showAuthModal   = ref(false);
 const showMyComments  = ref(false);
 const showProfile     = ref(false);
+
+// === 頁面視圖 ===
+// "map" = 地圖首頁  |  "country" = 國家料理頁
+const currentView = ref("map");
 
 // === Search Results ===
 const showSearchResults  = ref(false);
@@ -36,6 +40,7 @@ async function handleSearchPick(item) {
   selectedCode.value = item.code;
   selectedCountryName.value = item.countryName || COUNTRY_NAMES[item.code] || item.code;
   await fetchFoodsByCountry(item.code);
+  currentView.value = "country";
   const found = countryFoods.value.find((f) => f.name === item.name);
   if (found) await openFoodDetail(found);
 }
@@ -150,6 +155,7 @@ async function parseUrlAndNavigate() {
   selectedCode.value = country.toUpperCase();
   selectedCountryName.value = COUNTRY_NAMES[selectedCode.value] || selectedCode.value;
   await fetchFoodsByCountry(selectedCode.value);
+  currentView.value = "country";
 
   if (food) {
     const decoded = decodeURIComponent(food);
@@ -306,6 +312,7 @@ async function gotoFavorite(item) {
   selectedCode.value = item.code;
   selectedCountryName.value = COUNTRY_NAMES[item.code] || item.code;
   await fetchFoodsByCountry(item.code);
+  currentView.value = "country";
   const found = countryFoods.value.find((f) => f.name === item.name);
   if (found) await openFoodDetail(found);
 }
@@ -315,13 +322,14 @@ async function jumpToTopFood(item) {
   selectedCode.value = item.code;
   selectedCountryName.value = item.countryName || COUNTRY_NAMES[item.code] || item.code;
   await fetchFoodsByCountry(item.code);
+  currentView.value = "country";
   const found = countryFoods.value.find((f) => f.name === item.name);
   if (found) await openFoodDetail(found);
 }
 
 // === Reset map ===
 const resetMap = () => {
-  if (panzoom.value) panzoom.value.reset();
+  currentView.value = "map";
   selectedCountryName.value = null;
   selectedCode.value = null;
   countryFoods.value = [];
@@ -370,13 +378,8 @@ function setupSvg() {
 
       updateUrl(code, null);
       await fetchFoodsByCountry(code);
-
-      const bbox = p.getBBox();
-      const cx = bbox.x + bbox.width / 2;
-      const cy = bbox.y + bbox.height / 2;
-      panzoom.value.zoomAtPoint(4, { x: cx, y: cy });
-      panzoom.value.center();
-      panzoom.value.pan({ x: -(cx * 3), y: -(cy * 3) });
+      // 切換到國家料理頁面
+      currentView.value = "country";
     });
   });
 }
@@ -407,68 +410,70 @@ onMounted(async () => {
 
 <template>
   <div class="world-page">
-    <!-- 頂部導覽列 -->
-    <div class="top-bar">
-      <div class="top-bar-left">
-        <span class="app-logo">🌍</span>
-        <span class="app-title">World Food Explorer</span>
+
+    <!-- ══ 地圖視圖 ══ -->
+    <template v-if="currentView === 'map'">
+      <!-- 頂部導覽列 -->
+      <div class="top-bar">
+        <div class="top-bar-left">
+          <span class="app-logo">🌍</span>
+          <span class="app-title">World Food Explorer</span>
+        </div>
+        <div class="top-bar-center">
+          <SearchBar @pick="handleSearchPick" @search="handleSearchOpen" />
+        </div>
+        <div class="top-bar-right">
+          <UserMenu
+            @open-auth="showAuthModal = true"
+            @logged-out="handleLoggedOut"
+            @open-my-comments="showMyComments = true"
+            @open-profile="showProfile = true"
+          />
+        </div>
       </div>
-      <div class="top-bar-center">
-        <SearchBar @pick="handleSearchPick" @search="handleSearchOpen" />
-      </div>
-      <div class="top-bar-right">
-        <button class="reset-btn" @click="resetMap">↩ 返回</button>
-        <UserMenu
-          @open-auth="showAuthModal = true"
-          @logged-out="handleLoggedOut"
-          @open-my-comments="showMyComments = true"
-          @open-profile="showProfile = true"
+
+      <div class="map-stage">
+        <object
+          ref="svgObj"
+          data="/world.svg"
+          type="image/svg+xml"
+          class="world-map"
         />
       </div>
-    </div>
 
-    <div class="map-stage">
-      <object
-        ref="svgObj"
-        data="/world.svg"
-        type="image/svg+xml"
-        class="world-map"
+      <FavoritesPanel
+        :show="showFavPanel"
+        :is-logged-in="isLoggedIn"
+        @toggle-panel="showFavPanel = !showFavPanel"
+        @goto="gotoFavorite"
+        @need-auth="handleNeedAuth"
       />
 
-      <transition name="slide">
-        <FoodListPanel
-          v-if="selectedCountryName"
-          :country-name="selectedCountryName"
-          :code="selectedCode"
-          :flag-url="getFlag()"
-          :foods="displayFoods"
-          :all-foods="countryFoods"
-          :loading="loading"
-          :error-msg="errorMsg"
-          :all-tags="allTags"
-          :active-tags="activeTags"
-          :show-favorites-only="showFavoritesOnly"
-          :favorites="favorites"
-          :is-logged-in="isLoggedIn"
-          :list-max-height="listMaxHeight"
-          @toggle-fav-filter="showFavoritesOnly = !showFavoritesOnly"
-          @toggle-tag="toggleTag"
-          @toggle-favorite="handleToggleFavoriteList"
-          @open-food="openFoodDetail"
-          @update:list-max-height="(v) => (listMaxHeight = v)"
-        />
-      </transition>
-    </div>
+      <TopFoodsPanel @jump="jumpToTopFood" />
+    </template>
 
-    <FavoritesPanel
-      :show="showFavPanel"
-      :is-logged-in="isLoggedIn"
-      @toggle-panel="showFavPanel = !showFavPanel"
-      @goto="gotoFavorite"
-      @need-auth="handleNeedAuth"
-    />
-
-    <TopFoodsPanel @jump="jumpToTopFood" />
+    <!-- ══ 國家料理頁面 ══ -->
+    <template v-else-if="currentView === 'country'">
+      <CountryPage
+        :country-name="selectedCountryName"
+        :code="selectedCode"
+        :flag-url="getFlag()"
+        :foods="displayFoods"
+        :all-foods="countryFoods"
+        :loading="loading"
+        :error-msg="errorMsg"
+        :all-tags="allTags"
+        :active-tags="activeTags"
+        :show-favorites-only="showFavoritesOnly"
+        :favorites="favorites"
+        :is-logged-in="isLoggedIn"
+        @back="resetMap"
+        @toggle-fav-filter="showFavoritesOnly = !showFavoritesOnly"
+        @toggle-tag="toggleTag"
+        @toggle-favorite="handleToggleFavoriteList"
+        @open-food="openFoodDetail"
+      />
+    </template>
 
     <FoodDetailModal
       :show="showFoodModal"
