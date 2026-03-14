@@ -27,7 +27,7 @@ RATINGS_JSON  = DATA_DIR / "ratings.json"
 app = Flask(__name__, static_folder="static", static_url_path="/static")
 app.config["JSON_AS_ASCII"] = False
 app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get(
-    "DATABASE_URL", "postgresql://webfinal:webfinal@localhost:5432/webfinal"
+    "DATABASE_URL", "postgresql://webfinal:webfinal@localhost:5433/webfinal"
 )
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
