@@ -1,7 +1,9 @@
 <script setup>
-import { computed } from "vue";
+import { computed, watch } from "vue";
 import ShareButtons from "./ShareButtons.vue";
 import CommentSection from "./CommentSection.vue";
+import StarRating from "./StarRating.vue";
+import { useRatings } from "../composables/useRatings.js";
 
 const props = defineProps({
   show: { type: Boolean, default: false },
@@ -15,6 +17,30 @@ const props = defineProps({
 });
 
 const emit = defineEmits(["close", "like", "toggle-favorite", "need-auth"]);
+
+const { getRating, fetchRating, submitRating } = useRatings();
+
+watch(
+  () => [props.show, props.food?.name],
+  ([show, name]) => {
+    if (show && props.code && name) {
+      fetchRating(props.code, name);
+    }
+  },
+  { immediate: true }
+);
+
+const currentRating = computed(() =>
+  props.code && props.food?.name
+    ? getRating(props.code, props.food.name)
+    : { avg: 0, count: 0, myRating: 0 }
+);
+
+async function handleRate(stars) {
+  if (props.code && props.food?.name) {
+    await submitRating(props.code, props.food.name, stars);
+  }
+}
 
 const googleMapUrl = computed(() => {
   if (!props.food) return "https://www.google.com/maps";
@@ -43,6 +69,14 @@ function handleFavClick() {
       <div class="modal-tags" v-if="food?.tags?.length">
         <span class="tag-badge" v-for="t in food.tags" :key="t">{{ t }}</span>
       </div>
+
+      <!-- Star Rating -->
+      <StarRating
+        :avg="currentRating.avg"
+        :count="currentRating.count"
+        :my-rating="currentRating.myRating"
+        @rate="handleRate"
+      />
 
       <p class="food-desc">
         {{ food?.desc || "這道料理還沒有詳細介紹。" }}

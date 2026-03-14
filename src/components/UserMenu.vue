@@ -3,7 +3,7 @@ import { useAuth } from "../composables/useAuth.js";
 
 const { user, isLoggedIn, logout } = useAuth();
 
-const emit = defineEmits(["open-auth", "logged-out", "open-my-comments"]);
+const emit = defineEmits(["open-auth", "logged-out", "open-my-comments", "open-profile"]);
 
 function handleLogout() {
   logout();
@@ -15,6 +15,7 @@ function handleLogout() {
   <div class="user-menu">
     <template v-if="isLoggedIn">
       <span class="user-name">{{ user?.display_name }}</span>
+      <button class="profile-btn" @click="emit('open-profile')">個人資料</button>
       <button class="my-comments-btn" @click="emit('open-my-comments')">我的留言</button>
       <button class="logout-btn" @click="handleLogout">登出</button>
     </template>
@@ -47,7 +48,8 @@ function handleLogout() {
 
 .login-btn,
 .logout-btn,
-.my-comments-btn {
+.my-comments-btn,
+.profile-btn {
   border: none;
   padding: 6px 14px;
   border-radius: 999px;
@@ -70,6 +72,10 @@ function handleLogout() {
   background: #dbeafe;
   color: #2563eb;
 }
+.profile-btn {
+  background: #f0fdf4;
+  color: #16a34a;
+}
 
 @media (max-width: 768px) {
   .user-menu {
@@ -79,7 +85,8 @@ function handleLogout() {
   }
   .login-btn,
   .logout-btn,
-  .my-comments-btn {
+  .my-comments-btn,
+  .profile-btn {
     min-width: 44px;
     min-height: 44px;
     display: inline-flex;

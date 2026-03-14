@@ -1,7 +1,7 @@
 <script setup>
 import { ref, onMounted, onUnmounted } from "vue";
 
-const emit = defineEmits(["pick"]);
+const emit = defineEmits(["pick", "search"]);
 
 const searchQuery = ref("");
 const searchResults = ref([]);
@@ -43,6 +43,17 @@ function pickResult(item) {
   emit("pick", item);
 }
 
+function openSearchPage() {
+  const q = searchQuery.value.trim();
+  if (!q) return;
+  showSearchResults.value = false;
+  emit("search", { query: q, results: searchResults.value });
+}
+
+function onKeydown(e) {
+  if (e.key === "Enter") openSearchPage();
+}
+
 function closeDropdown(e) {
   const el = document.querySelector(".search-bar");
   if (el && !el.contains(e.target)) {
@@ -67,6 +78,7 @@ onUnmounted(() => {
       placeholder="搜尋料理、標籤..."
       v-model="searchQuery"
       @input="onSearchInput"
+      @keydown="onKeydown"
       @focus="searchResults.length && (showSearchResults = true)"
     />
     <div class="search-dropdown" v-if="showSearchResults">
@@ -87,6 +99,9 @@ onUnmounted(() => {
             <span class="tag-badge small" v-for="t in item.tags" :key="t">{{ t }}</span>
           </div>
         </div>
+      </div>
+      <div class="show-all-btn" v-if="searchResults.length" @click="openSearchPage">
+        查看所有結果 →
       </div>
     </div>
   </div>
@@ -189,6 +204,19 @@ onUnmounted(() => {
 .tag-badge.small {
   padding: 1px 6px;
   font-size: 10px;
+}
+
+.show-all-btn {
+  padding: 10px 16px;
+  font-size: 13px;
+  color: #2563eb;
+  cursor: pointer;
+  border-top: 1px solid #f3f4f6;
+  text-align: center;
+  font-weight: 600;
+}
+.show-all-btn:hover {
+  background: #eff6ff;
 }
 
 @media (max-width: 1024px) {

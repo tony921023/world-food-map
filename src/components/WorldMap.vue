@@ -12,11 +12,33 @@ import TopFoodsPanel from "./TopFoodsPanel.vue";
 import AuthModal from "./AuthModal.vue";
 import UserMenu from "./UserMenu.vue";
 import MyCommentsModal from "./MyCommentsModal.vue";
+import ProfileModal from "./ProfileModal.vue";
+import SearchResultsPage from "./SearchResultsPage.vue";
 
 // === Auth ===
 const { isLoggedIn, checkAuth } = useAuth();
-const showAuthModal = ref(false);
-const showMyComments = ref(false);
+const showAuthModal   = ref(false);
+const showMyComments  = ref(false);
+const showProfile     = ref(false);
+
+// === Search Results ===
+const showSearchResults  = ref(false);
+const searchResultsQuery = ref("");
+const searchResultsData  = ref([]);
+
+function handleSearchOpen({ query, results }) {
+  searchResultsQuery.value = query;
+  searchResultsData.value  = results || [];
+  showSearchResults.value  = true;
+}
+
+async function handleSearchPick(item) {
+  selectedCode.value = item.code;
+  selectedCountryName.value = item.countryName || COUNTRY_NAMES[item.code] || item.code;
+  await fetchFoodsByCountry(item.code);
+  const found = countryFoods.value.find((f) => f.name === item.name);
+  if (found) await openFoodDetail(found);
+}
 
 // === SVG map refs ===
 const svgObj = ref(null);
@@ -279,14 +301,6 @@ function handleToggleFavoriteList(food) {
 }
 
 // === Navigation helpers ===
-async function handleSearchPick(item) {
-  selectedCode.value = item.code;
-  selectedCountryName.value = item.countryName || COUNTRY_NAMES[item.code] || item.code;
-  await fetchFoodsByCountry(item.code);
-  const found = countryFoods.value.find((f) => f.name === item.name);
-  if (found) await openFoodDetail(found);
-}
-
 async function gotoFavorite(item) {
   if (!item?.code || !item?.name) return;
   selectedCode.value = item.code;
@@ -382,8 +396,13 @@ onMounted(async () => {
 
 <template>
   <div class="world-page">
-    <UserMenu @open-auth="showAuthModal = true" @logged-out="handleLoggedOut" @open-my-comments="showMyComments = true" />
-    <SearchBar @pick="handleSearchPick" />
+    <UserMenu
+      @open-auth="showAuthModal = true"
+      @logged-out="handleLoggedOut"
+      @open-my-comments="showMyComments = true"
+      @open-profile="showProfile = true"
+    />
+    <SearchBar @pick="handleSearchPick" @search="handleSearchOpen" />
 
     <button class="reset-btn" @click="resetMap">返回地圖</button>
 
@@ -455,6 +474,20 @@ onMounted(async () => {
       :show="showMyComments"
       @close="showMyComments = false"
       @goto="gotoFavorite"
+    />
+
+    <ProfileModal
+      :show="showProfile"
+      @close="showProfile = false"
+      @goto="gotoFavorite"
+    />
+
+    <SearchResultsPage
+      :show="showSearchResults"
+      :initial-query="searchResultsQuery"
+      :initial-results="searchResultsData"
+      @close="showSearchResults = false"
+      @pick="handleSearchPick"
     />
   </div>
 </template>

@@ -1,28 +1,68 @@
 <script setup>
-import { ref, watch } from "vue";
+import { ref, watch, onUnmounted, computed } from "vue";
 import { useCommentTokens } from "../composables/useCommentTokens.js";
 import { useAuth } from "../composables/useAuth.js";
 
 const props = defineProps({
-  code: { type: String, default: "" },
+  code:     { type: String, default: "" },
   foodName: { type: String, default: "" },
 });
 
 const { saveCommentToken, getCommentToken, removeCommentToken } = useCommentTokens();
 const { isLoggedIn, user, authHeaders } = useAuth();
 
-const comments = ref([]);
-const newUser = ref("");
-const newText = ref("");
-const posting = ref(false);
-const commentError = ref("");
+const comments      = ref([]);
+const newUser       = ref("");
+const newText       = ref("");
+const posting       = ref(false);
+const commentError  = ref("");
 
+// ── 驗證碼 ────────────────────────────────────────────────────────
+const captchaQuestion = ref("");
+const captchaAnswer   = ref("");
+const captchaError    = ref("");
+
+async function fetchCaptcha() {
+  try {
+    const res = await fetch("/api/captcha");
+    if (!res.ok) return;
+    const data = await res.json();
+    captchaQuestion.value = data.question;
+    captchaAnswer.value   = "";
+    captchaError.value    = "";
+  } catch { /* ignore */ }
+}
+
+// ── 冷卻計時 ──────────────────────────────────────────────────────
+const cooldownSeconds = ref(0);
+let _cooldownTimer: number | null = null;
+
+function startCooldown(seconds: number) {
+  cooldownSeconds.value = seconds;
+  if (_cooldownTimer) clearInterval(_cooldownTimer);
+  _cooldownTimer = setInterval(() => {
+    if (cooldownSeconds.value > 0) {
+      cooldownSeconds.value--;
+    } else {
+      clearInterval(_cooldownTimer!);
+      _cooldownTimer = null;
+      if (!isLoggedIn.value) fetchCaptcha();
+    }
+  }, 1000);
+}
+
+onUnmounted(() => { if (_cooldownTimer) clearInterval(_cooldownTimer); });
+
+// ── 字數統計 ──────────────────────────────────────────────────────
+const MAX_LEN   = 300;
+const charCount = computed(() => newText.value.length);
+const overLimit = computed(() => charCount.value > MAX_LEN);
+
+// ── 留言清單 ──────────────────────────────────────────────────────
 async function fetchComments() {
   if (!props.code || !props.foodName) return;
   try {
-    const r = await fetch(
-      `/api/food/${props.code}/${encodeURIComponent(props.foodName)}/comments`
-    );
+    const r    = await fetch(`/api/food/${props.code}/${encodeURIComponent(props.foodName)}/comments`);
     const data = await r.json();
     comments.value = data.comments || [];
   } catch {
@@ -33,37 +73,58 @@ async function fetchComments() {
 async function submitComment() {
   if (!props.code || !props.foodName) return;
   commentError.value = "";
-  const payload = {
-    text: (newText.value || "").trim(),
-  };
+
+  if (overLimit.value) {
+    commentError.value = `留言不能超過 ${MAX_LEN} 個字`;
+    return;
+  }
+  if (cooldownSeconds.value > 0) {
+    commentError.value = `請等待 ${cooldownSeconds.value} 秒後再留言`;
+    return;
+  }
+
+  const payload: Record<string, unknown> = { text: (newText.value || "").trim() };
   if (!isLoggedIn.value) {
     payload.user = newUser.value || "匿名";
-  }
-  if (!payload.text) return;
-  try {
-    posting.value = true;
-    const headers = { "Content-Type": "application/json" };
-    if (isLoggedIn.value) {
-      Object.assign(headers, authHeaders());
-    }
-    const r = await fetch(
-      `/api/food/${props.code}/${encodeURIComponent(props.foodName)}/comments`,
-      {
-        method: "POST",
-        headers,
-        body: JSON.stringify(payload),
-      }
-    );
-    const created = await r.json();
-    if (!r.ok) {
-      commentError.value = created.error || "留言失敗";
+    // 前端驗證碼欄位
+    if (!captchaQuestion.value) {
+      commentError.value = "請先取得驗證碼";
+      await fetchCaptcha();
       return;
     }
-    if (created.delete_token) {
-      saveCommentToken(created.id, created.delete_token);
+    const ans = parseInt(captchaAnswer.value, 10);
+    if (isNaN(ans)) {
+      commentError.value = "請填寫驗證碼答案";
+      return;
     }
+    payload.captcha_answer = ans;
+  }
+  if (!payload.text) return;
+
+  try {
+    posting.value = true;
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (isLoggedIn.value) Object.assign(headers, authHeaders());
+
+    const r = await fetch(
+      `/api/food/${props.code}/${encodeURIComponent(props.foodName)}/comments`,
+      { method: "POST", headers, body: JSON.stringify(payload) }
+    );
+    const created = await r.json();
+
+    if (!r.ok) {
+      commentError.value = created.error || "留言失敗";
+      if (created.retry_after) startCooldown(created.retry_after);
+      // 驗證碼錯誤或需要重新取得時重刷
+      if (created.need_captcha || r.status === 400) await fetchCaptcha();
+      return;
+    }
+
+    if (created.delete_token) saveCommentToken(created.id, created.delete_token);
     comments.value.unshift(created);
     newText.value = "";
+    // 成功後重刷驗證碼（給下次留言用）
+    if (!isLoggedIn.value) await fetchCaptcha();
   } catch {
     commentError.value = "留言失敗，請稍後再試";
   } finally {
@@ -72,38 +133,26 @@ async function submitComment() {
 }
 
 function canDelete(comment) {
-  // Logged-in user can delete their own comments
-  if (isLoggedIn.value && user.value && comment.user_id === user.value.id) {
-    return true;
-  }
-  // Or has delete token
+  if (isLoggedIn.value && user.value && comment.user_id === user.value.id) return true;
   return !!getCommentToken(comment.id);
 }
 
 async function deleteComment(comment) {
   if (!props.code || !props.foodName) return;
   if (!confirm("確定要刪除這則留言嗎？")) return;
-
   try {
-    const headers = { "Content-Type": "application/json" };
-    const body = {};
-
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    const body: Record<string, unknown>   = {};
     if (isLoggedIn.value && user.value && comment.user_id === user.value.id) {
-      // Use auth header for own comments
       Object.assign(headers, authHeaders());
     } else {
       const token = getCommentToken(comment.id);
       if (!token) return;
       body.token = token;
     }
-
     const r = await fetch(
       `/api/food/${props.code}/${encodeURIComponent(props.foodName)}/comments/${comment.id}`,
-      {
-        method: "DELETE",
-        headers,
-        body: JSON.stringify(body),
-      }
+      { method: "DELETE", headers, body: JSON.stringify(body) }
     );
     if (r.ok) {
       comments.value = comments.value.filter((c) => c.id !== comment.id);
@@ -120,17 +169,17 @@ async function likeComment(comment) {
       { method: "POST" }
     );
     const data = await r.json();
-    if (Number.isFinite(data.likes)) {
-      comment.likes = data.likes;
-    }
+    if (Number.isFinite(data.likes)) comment.likes = data.likes;
   } catch { /* ignore */ }
 }
 
-// Fetch comments when code/foodName changes
 watch(
   () => [props.code, props.foodName],
   ([c, f]) => {
-    if (c && f) fetchComments();
+    if (c && f) {
+      fetchComments();
+      if (!isLoggedIn.value) fetchCaptcha();
+    }
   },
   { immediate: true }
 );
@@ -139,7 +188,7 @@ watch(
 <template>
   <div class="comment-section">
     <div class="comment-editor" @click.stop>
-      <!-- Show name input only for anonymous users -->
+      <!-- 登入狀態顯示名稱 -->
       <template v-if="isLoggedIn && user">
         <div class="comment-as">
           以 <strong>{{ user.display_name }}</strong> 的身分留言
@@ -153,15 +202,47 @@ watch(
           placeholder="你的名字（可留空，預設匿名）"
         />
       </template>
+
       <textarea
         v-model="newText"
         class="comment-input text"
+        :class="{ 'over-limit': overLimit }"
         rows="3"
         placeholder="寫下你的看法..."
       ></textarea>
+
+      <!-- 字數統計 -->
+      <div class="char-count" :class="{ warn: charCount > MAX_LEN * 0.9, over: overLimit }">
+        {{ charCount }} / {{ MAX_LEN }}
+      </div>
+
+      <!-- 驗證碼（僅匿名用戶） -->
+      <div class="captcha-row" v-if="!isLoggedIn">
+        <span class="captcha-label" v-if="captchaQuestion">{{ captchaQuestion }}</span>
+        <span class="captcha-label muted" v-else>載入驗證碼中...</span>
+        <input
+          v-model="captchaAnswer"
+          class="captcha-input"
+          type="number"
+          placeholder="答案"
+          @focus="!captchaQuestion && fetchCaptcha()"
+        />
+        <button class="refresh-btn" @click="fetchCaptcha" title="重新取得驗證碼">↺</button>
+      </div>
+
+      <!-- 冷卻提示 -->
+      <div class="cooldown-msg" v-if="cooldownSeconds > 0">
+        請等待 {{ cooldownSeconds }} 秒後再留言
+      </div>
+
       <div class="comment-error" v-if="commentError">{{ commentError }}</div>
-      <button class="submit-btn" :disabled="posting" @click="submitComment">
-        送出留言
+
+      <button
+        class="submit-btn"
+        :disabled="posting || overLimit || cooldownSeconds > 0"
+        @click="submitComment"
+      >
+        {{ posting ? "送出中..." : "送出留言" }}
       </button>
     </div>
 
@@ -197,7 +278,6 @@ watch(
   gap: 8px;
   margin: 10px 0 16px;
 }
-
 .comment-as {
   font-size: 13px;
   color: #4b5563;
@@ -206,7 +286,6 @@ watch(
   border-radius: 8px;
   border: 1px solid #bbf7d0;
 }
-
 .comment-input {
   width: 100%;
   border: 1px solid #ddd;
@@ -215,12 +294,65 @@ watch(
   font-size: 14px;
   box-sizing: border-box;
 }
+.comment-input.over-limit {
+  border-color: #dc2626;
+}
+.char-count {
+  font-size: 12px;
+  color: #9ca3af;
+  text-align: right;
+}
+.char-count.warn  { color: #f59e0b; }
+.char-count.over  { color: #dc2626; font-weight: 600; }
 
+.captcha-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+.captcha-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1e293b;
+  white-space: nowrap;
+}
+.captcha-label.muted { color: #9ca3af; font-weight: 400; }
+.captcha-input {
+  width: 72px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 14px;
+  text-align: center;
+}
+.refresh-btn {
+  border: none;
+  background: #e2e8f0;
+  border-radius: 6px;
+  padding: 4px 8px;
+  cursor: pointer;
+  font-size: 15px;
+  color: #475569;
+}
+.refresh-btn:hover { background: #cbd5e1; }
+
+.cooldown-msg {
+  font-size: 13px;
+  color: #f59e0b;
+  padding: 6px 10px;
+  background: #fffbeb;
+  border-radius: 8px;
+  border: 1px solid #fde68a;
+  text-align: center;
+}
 .comment-error {
   color: #dc2626;
   font-size: 13px;
 }
-
 .submit-btn {
   border: none;
   border-radius: 8px;
@@ -234,7 +366,6 @@ watch(
   opacity: 0.6;
   cursor: not-allowed;
 }
-
 .comment-list .comment-item {
   padding: 10px 0;
   border-top: 1px dashed #e5e7eb;
@@ -247,13 +378,11 @@ watch(
   margin: 4px 0 0;
   white-space: pre-wrap;
 }
-
 .comment-actions {
   display: flex;
   gap: 8px;
   margin-top: 6px;
 }
-
 .comment-like-btn {
   border: none;
   background: #f3f4f6;
@@ -264,10 +393,7 @@ watch(
   color: #374151;
   min-height: 28px;
 }
-.comment-like-btn:hover {
-  background: #e5e7eb;
-}
-
+.comment-like-btn:hover { background: #e5e7eb; }
 .comment-delete-btn {
   border: none;
   background: #fee2e2;
@@ -278,9 +404,7 @@ watch(
   color: #dc2626;
   min-height: 28px;
 }
-.comment-delete-btn:hover {
-  background: #fecaca;
-}
+.comment-delete-btn:hover { background: #fecaca; }
 
 @media (max-width: 768px) {
   .submit-btn,
