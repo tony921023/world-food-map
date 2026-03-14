@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, nextTick, computed } from "vue";
+import { ref, onMounted, nextTick, computed, watch } from "vue";
 import svgPanZoom from "svg-pan-zoom";
 import { useFavorites } from "../composables/useFavorites.js";
 import { useAuth } from "../composables/useAuth.js";
@@ -329,6 +329,7 @@ async function jumpToTopFood(item) {
 
 // === Reset map ===
 const resetMap = () => {
+  panzoom.value = null;   // 清除舊實例，讓 setupSvg() 可以重新初始化
   currentView.value = "map";
   selectedCountryName.value = null;
   selectedCode.value = null;
@@ -405,6 +406,18 @@ onMounted(async () => {
 
   fetchAllTags();
   parseUrlAndNavigate();
+});
+
+// 每次切回地圖視圖時，重新附加 SVG 監聽器
+// （v-if 讓 <object> 重新建立，舊的 addEventListener 已消失）
+watch(currentView, async (view) => {
+  if (view !== "map") return;
+  await nextTick(); // 等 Vue 把 <object> 渲染進 DOM
+  if (!svgObj.value) return;
+  svgObj.value.addEventListener("load", setupSvg);
+  if (svgObj.value.contentDocument?.querySelector?.("svg")) {
+    setupSvg();
+  }
 });
 </script>
 
