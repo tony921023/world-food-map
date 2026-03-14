@@ -69,7 +69,7 @@ onMounted(() => {
   position: fixed;
   right: 28px; bottom: 28px;
   width: 270px;
-  background: rgba(255,255,255,0.97);
+  background: #ffffff;
   border-radius: var(--r-xl);
   box-shadow: var(--shadow-lg);
   border: 1px solid var(--c-border);

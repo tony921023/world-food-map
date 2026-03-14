@@ -283,16 +283,16 @@ const countryLabel = computed(() =>
 }
 
 .food-card {
-  background: var(--c-surface);
+  background: #ffffff;
   border-radius: var(--r-xl);
-  box-shadow: var(--shadow-md);
+  box-shadow: 0 4px 20px rgba(15,23,42,0.14);
   overflow: hidden;
   cursor: pointer;
   transition: transform var(--dur), box-shadow var(--dur);
 }
 .food-card:hover {
   transform: translateY(-5px);
-  box-shadow: var(--shadow-lg);
+  box-shadow: 0 12px 36px rgba(15,23,42,0.2);
 }
 
 .card-img-wrap {

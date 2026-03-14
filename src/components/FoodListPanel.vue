@@ -138,13 +138,10 @@ watch(
   max-height: calc(100vh - 120px);
   overflow: hidden;
   padding: 14px 18px 20px;
-  background: rgba(255,255,255,0.97);
+  background: #ffffff;
   border-radius: var(--r-xl);
-  box-shadow: var(--shadow-lg);
-  border: 1px solid var(--c-border);
+  box-shadow: 0 8px 32px rgba(15,23,42,0.22);
   z-index: 20;
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
 }
 
 .food-header {

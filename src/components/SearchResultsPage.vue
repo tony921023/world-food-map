@@ -243,16 +243,16 @@ function pickItem(item) {
 
 /* Card */
 .result-card {
-  background: var(--c-surface);
+  background: #ffffff;
   border-radius: var(--r-lg);
   overflow: hidden;
-  box-shadow: 0 2px 10px rgba(15,23,42,0.1);
+  box-shadow: 0 4px 20px rgba(15,23,42,0.14);
   cursor: pointer;
   transition: transform var(--dur), box-shadow var(--dur);
 }
 .result-card:hover {
   transform: translateY(-3px);
-  box-shadow: var(--shadow-md);
+  box-shadow: 0 10px 30px rgba(15,23,42,0.2);
 }
 .card-img-wrap { position: relative; aspect-ratio: 4/3; overflow: hidden; }
 .card-img { width: 100%; height: 100%; object-fit: cover; }

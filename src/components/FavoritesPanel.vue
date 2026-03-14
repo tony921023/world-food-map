@@ -212,14 +212,12 @@ function handleToggle() {
   border-radius: var(--r-full);
   border: 1px solid var(--c-border);
   cursor: pointer;
-  background: rgba(255,255,255,0.97);
+  background: #ffffff;
   color: var(--c-text);
   font-size: var(--text-sm);
   font-weight: 700;
   box-shadow: var(--shadow-md);
   z-index: 30;
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
   transition: all var(--dur);
 }
 .fav-global-toggle:hover {
@@ -234,15 +232,12 @@ function handleToggle() {
   bottom: 90px;
   transform: translateX(-50%);
   width: 320px;
-  background: rgba(255,255,255,0.97);
+  background: #ffffff;
   border-radius: var(--r-xl);
-  box-shadow: var(--shadow-lg);
-  border: 1px solid var(--c-border);
+  box-shadow: 0 8px 32px rgba(15,23,42,0.18);
   padding: 10px 14px 12px;
   z-index: 30;
   font-size: var(--text-base);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
 }
 .fav-global-panel h3 {
   margin: 0 0 6px;
