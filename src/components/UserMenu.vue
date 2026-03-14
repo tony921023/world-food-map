@@ -120,16 +120,16 @@ onUnmounted(() => document.removeEventListener("click", closeOnOutside));
 }
 
 .dropdown-panel {
-  position: absolute;
-  top: calc(100% + 8px);
-  right: 0;
+  position: fixed;
+  top: 60px;
+  right: 16px;
   width: 220px;
   background: #fff;
   border-radius: 14px;
   box-shadow: 0 8px 30px rgba(15,23,42,0.16);
   border: 1px solid rgba(148,163,184,0.2);
   overflow: hidden;
-  z-index: 100;
+  z-index: 200;
 }
 
 .dropdown-header {

@@ -54,7 +54,7 @@ button:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
 
 /* ── 頂部導覽列 ──────────────────────────────────────────────────────── */
 .top-bar {
-  position: fixed;
+  position: sticky;
   top: 0;
   left: 0;
   right: 0;
@@ -65,7 +65,7 @@ button:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
   justify-content: space-between;
   padding: 0 16px;
   gap: 12px;
-  background: rgba(255, 255, 255, 0.82);
+  background: rgba(255, 255, 255, 0.88);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
   border-bottom: 1px solid rgba(148, 163, 184, 0.25);
@@ -107,7 +107,7 @@ button:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
 /* ── 地圖頁面 ─────────────────────────────────────────────────────── */
 .world-page {
   position: relative;
-  padding-top: 56px; /* 頂部導覽列高度 */
+  /* top-bar 用 sticky，不需要 padding-top */
 }
 
 .map-stage {
@@ -165,7 +165,6 @@ button:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
 @media (max-width: 768px) {
   .top-bar { height: 52px; padding: 0 10px; }
   .app-title { display: none; }
-  .world-page { padding-top: 52px; }
 
   .slide-enter-from  { transform: translateY(100%); opacity: 0; }
   .slide-enter-to    { transform: translateY(0); opacity: 1; }
