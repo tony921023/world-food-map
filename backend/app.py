@@ -78,6 +78,14 @@ class Favorite(db.Model):
 
 with app.app_context():
     db.create_all()
+    # 自動補上後來新增的欄位（db.create_all 不會 ALTER 現有表）
+    from sqlalchemy import text as _text
+    with db.engine.connect() as _conn:
+        _conn.execute(_text(
+            "ALTER TABLE favorites ADD COLUMN IF NOT EXISTS "
+            "list_id INTEGER REFERENCES favorite_lists(id) ON DELETE SET NULL"
+        ))
+        _conn.commit()
 
 # ── JWT helpers ────────────────────────────────────────────────────
 def _make_token(user_id: int) -> str:
