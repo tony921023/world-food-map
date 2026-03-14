@@ -128,11 +128,13 @@ function handleFavClick() {
 .modal-mask {
   position: fixed;
   inset: 0;
-  background: rgba(15, 23, 42, 0.45);
+  background: var(--overlay);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 40;
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
 }
 
 .modal-content {
@@ -140,27 +142,35 @@ function handleFavClick() {
   max-width: calc(100% - 40px);
   max-height: calc(100% - 40px);
   overflow-y: auto;
-  background: #fff;
-  border-radius: 18px;
+  background: var(--c-surface);
+  border-radius: var(--r-xl);
   padding: 18px 22px 22px;
   position: relative;
+  box-shadow: var(--shadow-lg);
+  animation: popIn 0.25s var(--ease);
 }
 
 .close-btn {
   position: absolute;
-  top: 10px;
-  right: 12px;
+  top: 10px; right: 12px;
   border: none;
-  background: transparent;
-  font-size: 18px;
+  background: var(--c-hover);
+  color: var(--c-text-2);
+  font-size: 14px;
   cursor: pointer;
+  width: 30px; height: 30px;
+  border-radius: var(--r-full);
+  display: flex; align-items: center; justify-content: center;
+  padding: 0;
+  transition: background var(--dur);
 }
+.close-btn:hover { background: #e2e8f0; }
 
 .modal-food-img {
   width: 100%;
   max-height: 260px;
   object-fit: cover;
-  border-radius: 12px;
+  border-radius: var(--r-lg);
   margin-bottom: 12px;
 }
 
@@ -171,21 +181,11 @@ function handleFavClick() {
   margin: 4px 0 8px;
 }
 
-.tag-badge {
-  display: inline-block;
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: #dbeafe;
-  color: #1d4ed8;
-  font-size: 11px;
-  font-weight: 600;
-  line-height: 1.4;
-}
-
 .food-desc {
   margin: 8px 0 6px;
   line-height: 1.6;
-  color: #4b5563;
+  color: var(--c-text-2);
+  font-size: var(--text-base);
 }
 
 .like-row {
@@ -202,67 +202,60 @@ function handleFavClick() {
 }
 
 .like-btn {
-  border: 2px solid #2563eb;
-  border-radius: 999px;
+  border: 2px solid var(--c-primary);
+  border-radius: var(--r-full);
   padding: 7px 18px;
   cursor: pointer;
-  background: #fff;
-  color: #2563eb;
-  font-size: 14px;
+  background: var(--c-surface);
+  color: var(--c-primary);
+  font-size: var(--text-base);
   font-weight: 600;
-  transition: all 0.15s;
+  transition: all var(--dur);
 }
-.like-btn:hover:not([disabled]) {
-  background: #eff6ff;
-}
-.like-btn.liked {
-  background: #2563eb;
-  color: #fff;
-}
-.like-btn.liked:hover:not([disabled]) {
-  background: #1d4ed8;
-}
-.like-btn[disabled] {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
+.like-btn:hover:not([disabled]) { background: var(--c-hover-blue); }
+.like-btn.liked { background: var(--c-primary); color: #fff; }
+.like-btn.liked:hover:not([disabled]) { background: var(--c-primary-hover); }
+.like-btn[disabled] { opacity: 0.6; cursor: not-allowed; }
+
 .likes {
-  font-size: 14px;
-  color: #333;
+  font-size: var(--text-base);
+  color: var(--c-text);
+  font-weight: 600;
 }
 
 .fav-btn {
-  border: none;
-  border-radius: 999px;
-  padding: 6px 10px;
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-full);
+  padding: 6px 14px;
   cursor: pointer;
-  background: #e5e7eb;
-  color: #111827;
-  font-size: 13px;
+  background: var(--c-hover);
+  color: var(--c-text-2);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  transition: all var(--dur);
 }
-.fav-btn.active {
-  background: #f97316;
-  color: #fff;
-}
+.fav-btn:hover { background: #e2e8f0; }
+.fav-btn.active { background: #fee2e2; color: #dc2626; border-color: #fca5a5; }
 
 .map-link {
   display: inline-flex;
   width: 100%;
   justify-content: center;
   margin-top: 2px;
-  font-size: 13px;
-  padding: 6px 10px;
-  border-radius: 999px;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  padding: 8px 10px;
+  border-radius: var(--r-full);
   text-decoration: none;
   background: #10b981;
   color: #fff;
   box-sizing: border-box;
+  transition: background var(--dur);
 }
+.map-link:hover { background: #059669; }
 
 @media (max-width: 1024px) {
-  .modal-content {
-    width: 420px;
-  }
+  .modal-content { width: 420px; }
 }
 
 @media (max-width: 768px) {
@@ -270,14 +263,9 @@ function handleFavClick() {
     width: calc(100% - 24px);
     max-width: calc(100% - 24px);
   }
-
-  .like-btn,
-  .fav-btn {
-    min-width: 44px;
-    min-height: 44px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
+  .like-btn, .fav-btn {
+    min-width: 44px; min-height: 44px;
+    display: inline-flex; align-items: center; justify-content: center;
   }
 }
 </style>

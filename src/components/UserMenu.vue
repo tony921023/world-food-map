@@ -69,37 +69,34 @@ onUnmounted(() => document.removeEventListener("click", closeOnOutside));
   display: flex;
   align-items: center;
   gap: 7px;
-  background: rgba(255,255,255,0.9);
-  border: 1px solid rgba(148,163,184,0.35);
-  border-radius: 999px;
+  background: rgba(255,255,255,0.92);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-full);
   padding: 5px 12px 5px 6px;
-  box-shadow: 0 1px 6px rgba(15,23,42,0.09);
+  box-shadow: var(--shadow-sm);
   cursor: pointer;
-  transition: box-shadow 0.2s, background 0.2s;
+  transition: box-shadow var(--dur), background var(--dur);
 }
 .avatar-btn:hover {
-  background: #fff;
-  box-shadow: 0 3px 10px rgba(15,23,42,0.14);
+  background: var(--c-surface);
+  box-shadow: var(--shadow-md);
 }
 
 .avatar-circle {
-  width: 30px;
-  height: 30px;
+  width: 30px; height: 30px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #2563eb, #7c3aed);
+  background: linear-gradient(135deg, var(--c-primary), var(--c-accent));
   color: #fff;
-  font-size: 13px;
+  font-size: var(--text-sm);
   font-weight: 700;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  display: flex; align-items: center; justify-content: center;
   flex-shrink: 0;
 }
 
 .user-name-text {
-  font-size: 13px;
+  font-size: var(--text-sm);
   font-weight: 600;
-  color: #1e293b;
+  color: var(--c-text);
   max-width: 100px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -108,26 +105,23 @@ onUnmounted(() => document.removeEventListener("click", closeOnOutside));
 
 .chevron {
   font-size: 11px;
-  color: #64748b;
-  transition: transform 0.2s;
+  color: var(--c-text-3);
+  transition: transform var(--dur);
   line-height: 1;
 }
 .chevron.rotated { transform: rotate(180deg); }
 
 /* ── 下拉面板 ────────────────────────────────── */
-.user-dropdown {
-  position: relative;
-}
+.user-dropdown { position: relative; }
 
 .dropdown-panel {
   position: fixed;
-  top: 60px;
-  right: 16px;
+  top: 60px; right: 16px;
   width: 220px;
-  background: #fff;
-  border-radius: 14px;
-  box-shadow: 0 8px 30px rgba(15,23,42,0.16);
-  border: 1px solid rgba(148,163,184,0.2);
+  background: var(--c-surface);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-lg);
+  border: 1px solid var(--c-border);
   overflow: hidden;
   z-index: 200;
 }
@@ -137,29 +131,22 @@ onUnmounted(() => document.removeEventListener("click", closeOnOutside));
   align-items: center;
   gap: 10px;
   padding: 14px 14px 12px;
-  background: linear-gradient(135deg, #eff6ff, #f0f9ff);
+  background: var(--c-hover-blue);
 }
 .dh-avatar {
-  width: 38px;
-  height: 38px;
+  width: 38px; height: 38px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #2563eb, #7c3aed);
+  background: linear-gradient(135deg, var(--c-primary), var(--c-accent));
   color: #fff;
-  font-size: 16px;
+  font-size: var(--text-lg);
   font-weight: 700;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  display: flex; align-items: center; justify-content: center;
   flex-shrink: 0;
 }
-.dh-name  { font-size: 14px; font-weight: 700; color: #1e293b; }
-.dh-email { font-size: 11px; color: #64748b; margin-top: 1px; }
+.dh-name  { font-size: var(--text-base); font-weight: 700; color: var(--c-text); }
+.dh-email { font-size: var(--text-xs); color: var(--c-text-3); margin-top: 1px; }
 
-.dropdown-divider {
-  height: 1px;
-  background: #f1f5f9;
-  margin: 0;
-}
+.dropdown-divider { height: 1px; background: var(--c-hover); margin: 0; }
 
 .dd-item {
   width: 100%;
@@ -167,34 +154,34 @@ onUnmounted(() => document.removeEventListener("click", closeOnOutside));
   align-items: center;
   gap: 9px;
   padding: 11px 16px;
-  font-size: 14px;
+  font-size: var(--text-base);
   font-weight: 500;
-  color: #334155;
+  color: var(--c-text-2);
   background: transparent;
   border-radius: 0;
   text-align: left;
-  transition: background 0.12s;
+  transition: background var(--dur);
 }
-.dd-item:hover { background: #f8fafc; }
-.dd-icon { font-size: 16px; }
+.dd-item:hover { background: var(--c-hover); }
+.dd-icon { font-size: var(--text-lg); }
 
-.logout-item { color: #ef4444; }
-.logout-item:hover { background: #fff5f5; }
+.logout-item { color: var(--c-error); }
+.logout-item:hover { background: var(--c-error-light); }
 
 /* ── 未登入按鈕 ──────────────────────────────── */
 .login-btn {
-  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  background: linear-gradient(135deg, var(--c-primary), var(--c-primary-hover));
   color: #fff;
-  border-radius: 999px;
+  border-radius: var(--r-full);
   padding: 7px 18px;
-  font-size: 13px;
-  font-weight: 600;
+  font-size: var(--text-sm);
+  font-weight: 700;
   border: none;
   box-shadow: 0 2px 8px rgba(37,99,235,0.35);
-  transition: all 0.2s;
+  transition: all var(--dur);
 }
 .login-btn:hover {
-  background: linear-gradient(135deg, #1d4ed8, #1e40af);
+  background: linear-gradient(135deg, var(--c-primary-hover), #1e40af);
   box-shadow: 0 4px 14px rgba(37,99,235,0.45);
   transform: translateY(-1px);
 }

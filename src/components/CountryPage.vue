@@ -130,7 +130,7 @@ const countryLabel = computed(() =>
 <style scoped>
 .country-page {
   min-height: 100vh;
-  background: linear-gradient(160deg, #e8f0fe 0%, #dbeafe 40%, #eff6ff 100%);
+  background: var(--c-bg);
   display: flex;
   flex-direction: column;
 }
@@ -140,7 +140,7 @@ const countryLabel = computed(() =>
   position: relative;
   padding: 28px 32px 24px;
   background: linear-gradient(135deg, rgba(37,99,235,0.08) 0%, rgba(124,58,237,0.06) 100%);
-  border-bottom: 1px solid rgba(148,163,184,0.2);
+  border-bottom: 1px solid var(--c-border);
   backdrop-filter: blur(4px);
 }
 
@@ -149,23 +149,23 @@ const countryLabel = computed(() =>
   align-items: center;
   gap: 6px;
   background: rgba(255,255,255,0.9);
-  border: 1px solid rgba(148,163,184,0.35);
-  border-radius: 999px;
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-full);
   padding: 8px 18px;
-  font-size: 14px;
+  font-size: var(--text-base);
   font-weight: 600;
-  color: #374151;
+  color: var(--c-text-2);
   cursor: pointer;
-  box-shadow: 0 2px 8px rgba(15,23,42,0.1);
-  transition: all 0.2s;
+  box-shadow: var(--shadow-sm);
+  transition: all var(--dur);
   margin-bottom: 20px;
 }
 .back-btn:hover {
-  background: #fff;
-  box-shadow: 0 4px 14px rgba(15,23,42,0.15);
+  background: var(--c-surface);
+  box-shadow: var(--shadow-md);
   transform: translateX(-3px);
 }
-.back-arrow { font-size: 16px; }
+.back-arrow { font-size: var(--text-lg); }
 
 .hero-content {
   display: flex;
@@ -177,32 +177,33 @@ const countryLabel = computed(() =>
   width: 80px;
   height: 56px;
   object-fit: cover;
-  border-radius: 10px;
-  box-shadow: 0 4px 16px rgba(15,23,42,0.2);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-md);
 }
 
 .hero-title {
   font-size: 36px;
   font-weight: 800;
-  color: #0f172a;
+  color: var(--c-text);
   letter-spacing: -0.5px;
   margin: 0;
 }
 .hero-sub {
-  font-size: 15px;
-  color: #64748b;
+  font-size: var(--text-md);
+  color: var(--c-text-2);
   margin: 4px 0 0;
 }
 
 /* ── Filter bar ───────────────────────────────────────── */
 .filter-bar {
   padding: 12px 32px;
-  background: rgba(255,255,255,0.6);
-  border-bottom: 1px solid rgba(148,163,184,0.15);
+  background: rgba(255,255,255,0.7);
+  border-bottom: 1px solid var(--c-border);
   position: sticky;
   top: 0;
   z-index: 10;
   backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 .filter-inner {
   display: flex;
@@ -214,48 +215,33 @@ const countryLabel = computed(() =>
 }
 
 .fav-filter-btn {
-  background: #f3f4f6;
-  color: #374151;
-  border: 1px solid rgba(148,163,184,0.3);
-  border-radius: 999px;
+  background: var(--c-hover);
+  color: var(--c-text-2);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-full);
   padding: 5px 14px;
-  font-size: 13px;
+  font-size: var(--text-sm);
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: all var(--dur);
   white-space: nowrap;
 }
-.fav-filter-btn.active {
-  background: #fee2e2;
-  color: #dc2626;
-  border-color: #fca5a5;
-}
+.fav-filter-btn.active { background: #fee2e2; color: #dc2626; border-color: #fca5a5; }
 
-.tag-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
+.tag-chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .tag-chip {
-  background: rgba(255,255,255,0.8);
-  border: 1px solid rgba(148,163,184,0.35);
-  border-radius: 999px;
+  background: rgba(255,255,255,0.85);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-full);
   padding: 4px 13px;
-  font-size: 12px;
+  font-size: var(--text-sm);
   font-weight: 600;
-  color: #475569;
+  color: var(--c-text-2);
   cursor: pointer;
-  transition: all 0.15s;
+  transition: all var(--dur);
 }
-.tag-chip.active {
-  background: #2563eb;
-  color: #fff;
-  border-color: #2563eb;
-}
-.tag-chip:hover:not(.active) {
-  background: #eff6ff;
-  border-color: #93c5fd;
-}
+.tag-chip.active { background: var(--c-primary); color: #fff; border-color: var(--c-primary); }
+.tag-chip:hover:not(.active) { background: var(--c-hover-blue); border-color: #93c5fd; }
 
 /* ── Content ──────────────────────────────────────────── */
 .content {
@@ -274,17 +260,16 @@ const countryLabel = computed(() =>
   justify-content: center;
   gap: 12px;
   min-height: 200px;
-  color: #6b7280;
-  font-size: 15px;
+  color: var(--c-text-3);
+  font-size: var(--text-md);
 }
-.state-msg.error { color: #dc2626; }
+.state-msg.error { color: var(--c-error); }
 .state-icon { font-size: 48px; }
 
 .spinner {
-  width: 40px;
-  height: 40px;
-  border: 3px solid #e2e8f0;
-  border-top-color: #2563eb;
+  width: 40px; height: 40px;
+  border: 3px solid var(--c-hover);
+  border-top-color: var(--c-primary);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
@@ -298,16 +283,17 @@ const countryLabel = computed(() =>
 }
 
 .food-card {
-  background: #fff;
-  border-radius: 18px;
-  box-shadow: 0 2px 12px rgba(15,23,42,0.09);
+  background: var(--c-surface);
+  border-radius: var(--r-xl);
+  box-shadow: var(--shadow-sm);
   overflow: hidden;
   cursor: pointer;
-  transition: transform 0.2s, box-shadow 0.2s;
+  transition: transform var(--dur), box-shadow var(--dur);
+  border: 1px solid var(--c-border);
 }
 .food-card:hover {
   transform: translateY(-5px);
-  box-shadow: 0 12px 32px rgba(15,23,42,0.15);
+  box-shadow: var(--shadow-lg);
 }
 
 .card-img-wrap {
@@ -317,74 +303,58 @@ const countryLabel = computed(() =>
   overflow: hidden;
 }
 .card-img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
+  width: 100%; height: 100%;
+  object-fit: cover; display: block;
   transition: transform 0.3s;
 }
-.food-card:hover .card-img {
-  transform: scale(1.04);
-}
+.food-card:hover .card-img { transform: scale(1.04); }
 
 .like-badge {
   position: absolute;
-  bottom: 8px;
-  left: 8px;
+  bottom: 8px; left: 8px;
   background: rgba(0,0,0,0.6);
   color: #fff;
-  font-size: 11px;
+  font-size: var(--text-xs);
   font-weight: 700;
   padding: 3px 9px;
-  border-radius: 999px;
+  border-radius: var(--r-full);
   backdrop-filter: blur(4px);
 }
 
 .fav-btn {
   position: absolute;
-  top: 8px;
-  right: 8px;
-  background: rgba(255,255,255,0.85);
+  top: 8px; right: 8px;
+  background: rgba(255,255,255,0.9);
   border: none;
   border-radius: 50%;
-  width: 34px;
-  height: 34px;
-  font-size: 16px;
+  width: 34px; height: 34px;
+  font-size: var(--text-lg);
   cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.15);
-  transition: transform 0.15s;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: var(--shadow-sm);
+  transition: transform var(--dur);
   padding: 0;
   backdrop-filter: blur(4px);
 }
-.fav-btn:hover { transform: scale(1.15); }
-.fav-btn.active { background: rgba(255,255,255,0.95); }
+.fav-btn:hover { transform: scale(1.15); background: var(--c-surface); }
 
-.card-body {
-  padding: 12px 14px 14px;
-}
+.card-body { padding: 12px 14px 14px; }
 .card-name {
   margin: 0 0 8px;
-  font-size: 16px;
+  font-size: var(--text-lg);
   font-weight: 700;
-  color: #0f172a;
+  color: var(--c-text);
   line-height: 1.3;
 }
 
-.card-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 5px;
-}
+.card-tags { display: flex; flex-wrap: wrap; gap: 5px; }
 .tag {
-  background: #dbeafe;
-  color: #1d4ed8;
-  font-size: 11px;
+  background: var(--c-primary-light);
+  color: var(--c-primary);
+  font-size: var(--text-xs);
   font-weight: 600;
   padding: 2px 9px;
-  border-radius: 999px;
+  border-radius: var(--r-full);
 }
 
 /* ── RWD ──────────────────────────────────────────────── */
@@ -394,10 +364,7 @@ const countryLabel = computed(() =>
   .hero-flag { width: 56px; height: 40px; }
   .filter-bar { padding: 10px 16px; }
   .content { padding: 20px 16px; }
-  .food-grid {
-    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-    gap: 16px;
-  }
-  .back-btn { padding: 7px 14px; font-size: 13px; }
+  .food-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 16px; }
+  .back-btn { padding: 7px 14px; font-size: var(--text-sm); }
 }
 </style>

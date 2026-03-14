@@ -45,33 +45,17 @@ function starClass(i) {
   gap: 8px;
   margin: 6px 0;
 }
-.stars {
-  display: flex;
-  gap: 1px;
-}
+.stars { display: flex; gap: 1px; }
 .star {
   font-size: 24px;
-  color: #d1d5db;
+  color: var(--c-border);
   line-height: 1;
-  transition: color 0.1s;
+  transition: color var(--dur), transform var(--dur);
   user-select: none;
 }
-.star.filled {
-  color: #f59e0b;
-}
-.stars.interactive .star {
-  cursor: pointer;
-}
-.stars.interactive .star:hover {
-  color: #f59e0b;
-  transform: scale(1.15);
-}
-.rating-info {
-  font-size: 13px;
-  color: #4b5563;
-}
-.rating-info.muted {
-  color: #9ca3af;
-  font-size: 12px;
-}
+.star.filled { color: var(--c-warn); }
+.stars.interactive .star { cursor: pointer; }
+.stars.interactive .star:hover { color: var(--c-warn); transform: scale(1.15); }
+.rating-info { font-size: var(--text-sm); color: var(--c-text-2); }
+.rating-info.muted { color: var(--c-text-3); font-size: var(--text-xs); }
 </style>
