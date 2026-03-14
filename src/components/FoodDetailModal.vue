@@ -128,13 +128,11 @@ function handleFavClick() {
 .modal-mask {
   position: fixed;
   inset: 0;
-  background: var(--overlay);
+  background: rgba(15,23,42,0.65);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 40;
-  backdrop-filter: blur(3px);
-  -webkit-backdrop-filter: blur(3px);
 }
 
 .modal-content {
@@ -142,11 +140,11 @@ function handleFavClick() {
   max-width: calc(100% - 40px);
   max-height: calc(100% - 40px);
   overflow-y: auto;
-  background: var(--c-surface);
+  background: #ffffff;
   border-radius: var(--r-xl);
   padding: 18px 22px 22px;
   position: relative;
-  box-shadow: var(--shadow-lg);
+  box-shadow: 0 20px 60px rgba(15,23,42,0.35);
   animation: popIn 0.25s var(--ease);
 }
 
