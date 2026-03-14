@@ -20,7 +20,9 @@ World Food Explorer — 全端網頁應用程式，使用者透過互動式 SVG 
 **資料庫：**
 ```bash
 docker compose up -d
-# PostgreSQL 16 於 port 5432（帳號/密碼/DB: webfinal）
+# PostgreSQL 16 於主機 port 5433（容器內 5432）
+# 帳號/密碼/DB: webfinal
+# 注意：主機 5432 已被本機 PostgreSQL 佔用，docker-compose 使用 5433
 ```
 
 **後端：**
