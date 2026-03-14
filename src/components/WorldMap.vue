@@ -332,62 +332,73 @@ const resetMap = () => {
   updateUrl(null, null);
 };
 
+// === SVG 初始化（獨立函式，避免非同步競態） ===
+function setupSvg() {
+  const svgDoc = svgObj.value?.contentDocument;
+  if (!svgDoc) return;
+  const svgEl = svgDoc.querySelector("svg");
+  if (!svgEl) return;
+
+  // 避免重複初始化
+  if (panzoom.value) return;
+
+  panzoom.value = svgPanZoom(svgEl, {
+    zoomEnabled: true,
+    controlIconsEnabled: false,
+    panEnabled: true,
+    minZoom: 1,
+    maxZoom: 10,
+    fit: true,
+    center: true,
+  });
+
+  svgDoc.querySelectorAll("path").forEach((p) => {
+    p.style.cursor = "pointer";
+    p.addEventListener("mouseenter", () => { p.style.fill = "#88b7deff"; });
+    p.addEventListener("mouseleave", () => { p.style.fill = "#ececec"; });
+
+    p.addEventListener("click", async () => {
+      const countryNameRaw =
+        p.getAttribute("name") ||
+        p.getAttribute("id") ||
+        (p.getAttribute("class")?.split(" ")[0]) ||
+        "Unknown";
+
+      selectedCountryName.value = countryNameRaw;
+      const code = CODE_BY_SVG_ID[countryNameRaw] || null;
+      selectedCode.value = code;
+
+      updateUrl(code, null);
+      await fetchFoodsByCountry(code);
+
+      const bbox = p.getBBox();
+      const cx = bbox.x + bbox.width / 2;
+      const cy = bbox.y + bbox.height / 2;
+      panzoom.value.zoomAtPoint(4, { x: cx, y: cy });
+      panzoom.value.center();
+      panzoom.value.pan({ x: -(cx * 3), y: -(cy * 3) });
+    });
+  });
+}
+
 // === Mount ===
 onMounted(async () => {
-  // Check auth and load favorites
+  // ★ 先同步附上 SVG load 監聽器，避免 await 期間 SVG 已載完而錯過事件
+  if (svgObj.value) {
+    svgObj.value.addEventListener("load", setupSvg);
+    // 若 SVG 已從快取載入完成，直接執行
+    if (svgObj.value.contentDocument?.querySelector?.("svg")) {
+      setupSvg();
+    }
+  }
+
+  // 再做非同步 auth 操作
   const authed = await checkAuth();
   if (authed) {
     await migrateLocalStorage();
     await loadFavorites();
     await loadFavoriteLists();
   }
-
-  if (!svgObj.value) return;
-
-  svgObj.value.addEventListener("load", () => {
-    const svgDoc = svgObj.value.contentDocument;
-    if (!svgDoc) return;
-    const svgEl = svgDoc.querySelector("svg");
-    if (!svgEl) return;
-
-    panzoom.value = svgPanZoom(svgEl, {
-      zoomEnabled: true,
-      controlIconsEnabled: false,
-      panEnabled: true,
-      minZoom: 1,
-      maxZoom: 10,
-      fit: true,
-      center: true,
-    });
-
-    svgDoc.querySelectorAll("path").forEach((p) => {
-      p.style.cursor = "pointer";
-      p.addEventListener("mouseenter", () => { p.style.fill = "#88b7deff"; });
-      p.addEventListener("mouseleave", () => { p.style.fill = "#ececec"; });
-
-      p.addEventListener("click", async () => {
-        const countryNameRaw =
-          p.getAttribute("name") ||
-          p.getAttribute("id") ||
-          (p.getAttribute("class")?.split(" ")[0]) ||
-          "Unknown";
-
-        selectedCountryName.value = countryNameRaw;
-        const code = CODE_BY_SVG_ID[countryNameRaw] || null;
-        selectedCode.value = code;
-
-        updateUrl(code, null);
-        await fetchFoodsByCountry(code);
-
-        const bbox = p.getBBox();
-        const cx = bbox.x + bbox.width / 2;
-        const cy = bbox.y + bbox.height / 2;
-        panzoom.value.zoomAtPoint(4, { x: cx, y: cy });
-        panzoom.value.center();
-        panzoom.value.pan({ x: -(cx * 3), y: -(cy * 3) });
-      });
-    });
-  });
 
   fetchAllTags();
   parseUrlAndNavigate();
