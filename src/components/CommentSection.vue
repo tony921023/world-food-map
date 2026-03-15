@@ -248,8 +248,14 @@ async function deleteComment(comment) {
     if (r.ok) {
       comments.value = comments.value.filter((c) => c.id !== comment.id);
       removeCommentToken(comment.id);
+      toastSuccess("留言已刪除");
+    } else {
+      const data = await r.json().catch(() => ({}));
+      toastError(data.error || "刪除失敗");
     }
-  } catch { /* ignore */ }
+  } catch {
+    toastError("刪除失敗，請稍後再試");
+  }
 }
 
 async function likeComment(comment) {
@@ -260,8 +266,14 @@ async function likeComment(comment) {
       { method: "POST" }
     );
     const data = await r.json();
+    if (!r.ok) {
+      toastError(data.error || "按讚失敗");
+      return;
+    }
     if (Number.isFinite(data.likes)) comment.likes = data.likes;
-  } catch { /* ignore */ }
+  } catch {
+    toastError("操作失敗，請稍後再試");
+  }
 }
 
 watch(

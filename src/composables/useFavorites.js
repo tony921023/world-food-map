@@ -1,6 +1,7 @@
 import { ref, computed } from "vue";
 import { useAuth } from "./useAuth.js";
 import { apiFetch } from "../utils/api.js";
+import { useToast } from "./useToast.js";
 
 const OLD_STORAGE_KEY = "worldmap_favorites_v1";
 
@@ -10,6 +11,7 @@ const favoriteLists = ref([]);   // [{id, name}, ...]
 
 export function useFavorites() {
   const { isLoggedIn } = useAuth();
+  const { error: toastError } = useToast();
 
   function favKey(code, name) {
     return `${code || "??"}::${name}`;
@@ -48,13 +50,8 @@ export function useFavorites() {
   }
 
   async function toggleFavorite(code, name) {
-    console.log("[Fav] toggleFavorite called", { code, name, isLoggedIn: isLoggedIn.value });
-    if (!code || !name || !isLoggedIn.value) {
-      console.warn("[Fav] 跳出：", { code, name, loggedIn: isLoggedIn.value });
-      return;
-    }
+    if (!code || !name || !isLoggedIn.value) return;
     const wasFav = isFavorite(code, name);
-    console.log("[Fav] wasFav =", wasFav);
 
     // Optimistic update
     if (wasFav) {
@@ -75,15 +72,14 @@ export function useFavorites() {
         body: JSON.stringify({ country_code: code, food_name: name }),
       });
       const data = await res.json().catch(() => ({}));
-      console.log("[Fav] API 回應", res.status, data);
       if (!res.ok) {
-        console.error("[Fav] API 失敗，重新載入");
+        toastError(data.error || "收藏操作失敗，請稍後再試");
         await loadFavorites();
       } else if (!wasFav) {
         await loadFavorites();
       }
-    } catch (e) {
-      console.error("[Fav] 網路錯誤", e);
+    } catch {
+      toastError("網路錯誤，請稍後再試");
       await loadFavorites();
     }
   }

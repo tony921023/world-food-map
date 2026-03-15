@@ -84,6 +84,11 @@ function pickItem(item) {
   emit("pick", item);
   emit("close");
 }
+
+function onImgError(e) {
+  e.target.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='120'%3E%3Crect width='160' height='120' fill='%23f1f5f9'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-size='40'%3E%F0%9F%8D%BD%EF%B8%8F%3C/text%3E%3C/svg%3E";
+  e.target.onerror = null;
+}
 </script>
 
 <template>
@@ -164,7 +169,7 @@ function pickItem(item) {
           @click="pickItem(item)"
         >
           <div class="card-img-wrap">
-            <img :src="item.img" :alt="item.name" class="card-img" />
+            <img :src="item.img" :alt="item.name" class="card-img" @error="onImgError" />
             <span class="like-badge" v-if="item.likes > 0">👍 {{ item.likes }}</span>
           </div>
           <div class="card-body">

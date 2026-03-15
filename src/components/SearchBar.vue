@@ -54,6 +54,11 @@ function onKeydown(e) {
   if (e.key === "Enter") openSearchPage();
 }
 
+function onImgError(e) {
+  e.target.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48' height='36'%3E%3Crect width='48' height='36' fill='%23f1f5f9'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-size='18'%3E%F0%9F%8D%BD%EF%B8%8F%3C/text%3E%3C/svg%3E";
+  e.target.onerror = null;
+}
+
 function closeDropdown(e) {
   const el = document.querySelector(".search-bar");
   if (el && !el.contains(e.target)) {
@@ -91,7 +96,7 @@ onUnmounted(() => {
         :key="item.code + '_' + item.name"
         @click="pickResult(item)"
       >
-        <img class="search-thumb" :src="item.img" :alt="item.name" />
+        <img class="search-thumb" :src="item.img" :alt="item.name" @error="onImgError" />
         <div class="search-info">
           <span class="search-name">{{ item.name }}</span>
           <span class="search-country">{{ item.countryName }}</span>

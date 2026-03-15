@@ -4,6 +4,7 @@ import ShareButtons from "./ShareButtons.vue";
 import CommentSection from "./CommentSection.vue";
 import StarRating from "./StarRating.vue";
 import { useRatings } from "../composables/useRatings.js";
+import { apiFetch } from "../utils/api.js";
 
 const props = defineProps({
   show: { type: Boolean, default: false },
@@ -64,13 +65,18 @@ const related = ref([]);
 async function fetchRelated() {
   if (!props.code || !props.food?.name) return;
   try {
-    const res = await fetch(
+    const res = await apiFetch(
       `/api/food/${props.code}/${encodeURIComponent(props.food.name)}/related`
     );
     if (!res.ok) return;
     const data = await res.json();
     related.value = data.related || [];
   } catch { /* ignore */ }
+}
+
+function onImgError(e) {
+  e.target.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='120'%3E%3Crect width='160' height='120' fill='%23f1f5f9'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-size='40'%3E%F0%9F%8D%BD%EF%B8%8F%3C/text%3E%3C/svg%3E";
+  e.target.onerror = null;
 }
 
 watch(
@@ -86,7 +92,7 @@ watch(
   <div class="modal-mask" v-if="show" @click="emit('close')">
     <div class="modal-content" @click.stop>
       <button class="close-btn" @click="emit('close')">✕</button>
-      <img class="modal-food-img" :src="food?.img" />
+      <img class="modal-food-img" :src="food?.img" @error="onImgError" />
       <h2>{{ food?.name }}</h2>
 
       <!-- Tags -->
@@ -151,7 +157,7 @@ watch(
             :key="r.name"
             @click="emit('open-food', r)"
           >
-            <img class="related-img" :src="r.img" :alt="r.name" />
+            <img class="related-img" :src="r.img" :alt="r.name" @error="onImgError" />
             <div class="related-info">
               <span class="related-name">{{ r.name }}</span>
               <div class="related-tags" v-if="r.tags?.length">

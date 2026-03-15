@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed } from "vue";
 import { useFavorites } from "../composables/useFavorites.js";
+import { useToast } from "../composables/useToast.js";
 
 const props = defineProps({
   show: { type: Boolean, default: false },
@@ -9,6 +10,7 @@ const props = defineProps({
 
 const emit = defineEmits(["toggle-panel", "goto", "need-auth"]);
 
+const { error: toastError } = useToast();
 const {
   myFavorites,
   favoriteLists,
@@ -58,7 +60,9 @@ async function doRename(listId) {
   if (!name) return;
   try {
     await renameFavoriteList(listId, name);
-  } catch { /* ignore */ }
+  } catch (e) {
+    toastError(e.message || "重新命名失敗");
+  }
   renamingListId.value = null;
 }
 
@@ -68,7 +72,9 @@ async function doDeleteList(listId) {
   try {
     await deleteFavoriteList(listId);
     if (activeTab.value === listId) activeTab.value = "all";
-  } catch { /* ignore */ }
+  } catch (e) {
+    toastError(e.message || "刪除清單失敗");
+  }
 }
 
 // Move dropdown
@@ -81,7 +87,9 @@ function toggleMoveMenu(favId) {
 async function doMove(favId, listId) {
   try {
     await moveFavorite(favId, listId);
-  } catch { /* ignore */ }
+  } catch (e) {
+    toastError(e.message || "移動失敗");
+  }
   movingFavId.value = null;
 }
 
