@@ -1,5 +1,6 @@
 import { ref, computed } from "vue";
 import { useAuth } from "./useAuth.js";
+import { apiFetch } from "../utils/api.js";
 
 const OLD_STORAGE_KEY = "worldmap_favorites_v1";
 
@@ -8,7 +9,7 @@ const favorites = ref([]);       // [{id, country_code, food_name, list_id}, ...
 const favoriteLists = ref([]);   // [{id, name}, ...]
 
 export function useFavorites() {
-  const { isLoggedIn, authHeaders } = useAuth();
+  const { isLoggedIn } = useAuth();
 
   function favKey(code, name) {
     return `${code || "??"}::${name}`;
@@ -34,7 +35,7 @@ export function useFavorites() {
       return;
     }
     try {
-      const res = await fetch("/api/favorites", { headers: authHeaders() });
+      const res = await apiFetch("/api/favorites");
       if (!res.ok) {
         favorites.value = [];
         return;
@@ -68,9 +69,9 @@ export function useFavorites() {
     }
 
     try {
-      const res = await fetch("/api/favorites", {
+      const res = await apiFetch("/api/favorites", {
         method: wasFav ? "DELETE" : "POST",
-        headers: { "Content-Type": "application/json", ...authHeaders() },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ country_code: code, food_name: name }),
       });
       const data = await res.json().catch(() => ({}));
@@ -104,9 +105,9 @@ export function useFavorites() {
 
       if (!items.length) return;
 
-      const res = await fetch("/api/favorites/batch", {
+      const res = await apiFetch("/api/favorites/batch", {
         method: "POST",
-        headers: { "Content-Type": "application/json", ...authHeaders() },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ items }),
       });
 
@@ -135,7 +136,7 @@ export function useFavorites() {
       return;
     }
     try {
-      const res = await fetch("/api/favorite-lists", { headers: authHeaders() });
+      const res = await apiFetch("/api/favorite-lists");
       if (!res.ok) {
         favoriteLists.value = [];
         return;
@@ -148,9 +149,9 @@ export function useFavorites() {
   }
 
   async function createFavoriteList(name) {
-    const res = await fetch("/api/favorite-lists", {
+    const res = await apiFetch("/api/favorite-lists", {
       method: "POST",
-      headers: { "Content-Type": "application/json", ...authHeaders() },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name }),
     });
     const data = await res.json();
@@ -160,9 +161,9 @@ export function useFavorites() {
   }
 
   async function renameFavoriteList(listId, name) {
-    const res = await fetch(`/api/favorite-lists/${listId}`, {
+    const res = await apiFetch(`/api/favorite-lists/${listId}`, {
       method: "PUT",
-      headers: { "Content-Type": "application/json", ...authHeaders() },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name }),
     });
     const data = await res.json();
@@ -173,9 +174,8 @@ export function useFavorites() {
   }
 
   async function deleteFavoriteList(listId) {
-    const res = await fetch(`/api/favorite-lists/${listId}`, {
+    const res = await apiFetch(`/api/favorite-lists/${listId}`, {
       method: "DELETE",
-      headers: authHeaders(),
     });
     if (!res.ok) {
       const data = await res.json();
@@ -189,9 +189,9 @@ export function useFavorites() {
   }
 
   async function moveFavorite(favoriteId, listId) {
-    const res = await fetch("/api/favorites/move", {
+    const res = await apiFetch("/api/favorites/move", {
       method: "PUT",
-      headers: { "Content-Type": "application/json", ...authHeaders() },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ favorite_id: favoriteId, list_id: listId }),
     });
     if (!res.ok) {

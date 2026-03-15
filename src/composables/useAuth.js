@@ -1,81 +1,63 @@
 import { ref, computed } from "vue";
-
-const TOKEN_KEY = "worldmap_jwt";
+import { apiFetch } from "../utils/api.js";
 
 // Singleton state
-const token = ref(localStorage.getItem(TOKEN_KEY) || "");
 const user = ref(null);
 
 export function useAuth() {
   const isLoggedIn = computed(() => !!user.value);
 
-  function _setToken(t) {
-    token.value = t;
-    if (t) {
-      localStorage.setItem(TOKEN_KEY, t);
-    } else {
-      localStorage.removeItem(TOKEN_KEY);
-    }
-  }
-
+  // Kept for backward compatibility - cookies are now sent automatically
   function authHeaders() {
-    return token.value
-      ? { Authorization: `Bearer ${token.value}` }
-      : {};
+    return {};
   }
 
   async function register(email, password, displayName) {
-    const res = await fetch("/api/auth/register", {
+    const res = await apiFetch("/api/auth/register", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email, password, display_name: displayName }),
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || "註冊失敗");
-    _setToken(data.token);
     user.value = data.user;
     return data;
   }
 
   async function login(email, password) {
-    const res = await fetch("/api/auth/login", {
+    const res = await apiFetch("/api/auth/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email, password }),
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || "登入失敗");
-    _setToken(data.token);
     user.value = data.user;
     return data;
   }
 
-  function logout() {
-    _setToken("");
+  async function logout() {
+    await apiFetch("/api/auth/logout", { method: "POST" }).catch(() => {});
     user.value = null;
   }
 
   async function checkAuth() {
-    if (!token.value) return false;
     try {
-      const res = await fetch("/api/auth/me", {
-        headers: authHeaders(),
-      });
+      const res = await apiFetch("/api/auth/me");
       if (!res.ok) {
-        logout();
+        user.value = null;
         return false;
       }
       const data = await res.json();
       user.value = data.user;
       return true;
     } catch {
-      logout();
+      user.value = null;
       return false;
     }
   }
 
   return {
-    token,
     user,
     isLoggedIn,
     authHeaders,

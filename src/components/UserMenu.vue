@@ -8,9 +8,9 @@ const emit = defineEmits(["open-auth", "logged-out", "open-my-comments", "open-p
 const open = ref(false);
 const menuRef = ref(null);
 
-function handleLogout() {
+async function handleLogout() {
   open.value = false;
-  logout();
+  await logout();
   emit("logged-out");
 }
 

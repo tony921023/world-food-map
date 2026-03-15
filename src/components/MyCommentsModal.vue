@@ -1,6 +1,6 @@
 <script setup>
 import { ref, watch } from "vue";
-import { useAuth } from "../composables/useAuth.js";
+import { apiFetch } from "../utils/api.js";
 
 const props = defineProps({
   show: { type: Boolean, default: false },
@@ -8,16 +8,13 @@ const props = defineProps({
 
 const emit = defineEmits(["close", "goto"]);
 
-const { authHeaders } = useAuth();
 const comments = ref([]);
 const loading = ref(false);
 
 async function fetchMyComments() {
   loading.value = true;
   try {
-    const res = await fetch("/api/auth/my-comments", {
-      headers: authHeaders(),
-    });
+    const res = await apiFetch("/api/auth/my-comments");
     if (!res.ok) {
       comments.value = [];
       return;

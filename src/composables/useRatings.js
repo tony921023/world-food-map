@@ -1,21 +1,18 @@
 import { ref } from "vue";
-import { useAuth } from "./useAuth.js";
+import { apiFetch } from "../utils/api.js";
 
 // Singleton — 所有元件共享同一份評分快取
 const ratingsMap = ref({});  // "CODE|||name" -> { avg, count, myRating }
 
 export function useRatings() {
-  const { authHeaders } = useAuth();
-
   function getRating(code, name) {
     return ratingsMap.value[`${code}|||${name}`] || { avg: 0, count: 0, myRating: 0 };
   }
 
   async function fetchRating(code, name) {
     try {
-      const res = await fetch(
-        `/api/food/${code}/${encodeURIComponent(name)}/rating`,
-        { headers: authHeaders() }
+      const res = await apiFetch(
+        `/api/food/${code}/${encodeURIComponent(name)}/rating`
       );
       if (!res.ok) return;
       const data = await res.json();
@@ -29,11 +26,11 @@ export function useRatings() {
 
   async function submitRating(code, name, stars) {
     try {
-      const res = await fetch(
+      const res = await apiFetch(
         `/api/food/${code}/${encodeURIComponent(name)}/rate`,
         {
           method:  "POST",
-          headers: { "Content-Type": "application/json", ...authHeaders() },
+          headers: { "Content-Type": "application/json" },
           body:    JSON.stringify({ rating: stars }),
         }
       );

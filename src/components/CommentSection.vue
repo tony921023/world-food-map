@@ -3,6 +3,7 @@ import { ref, watch, onUnmounted, computed } from "vue";
 import { useCommentTokens } from "../composables/useCommentTokens.js";
 import { useAuth } from "../composables/useAuth.js";
 import { useToast } from "../composables/useToast.js";
+import { apiFetch } from "../utils/api.js";
 
 const props = defineProps({
   code:     { type: String, default: "" },
@@ -10,7 +11,7 @@ const props = defineProps({
 });
 
 const { saveCommentToken, getCommentToken, removeCommentToken } = useCommentTokens();
-const { isLoggedIn, user, authHeaders } = useAuth();
+const { isLoggedIn, user } = useAuth();
 const { success: toastSuccess, error: toastError } = useToast();
 
 const comments      = ref([]);
@@ -18,6 +19,9 @@ const newUser       = ref("");
 const newText       = ref("");
 const posting       = ref(false);
 const commentError  = ref("");
+
+// 排序：newest | most_liked
+const sortOrder     = ref("newest");
 
 // 回覆狀態
 const replyingTo    = ref(null);   // { id, user } 正在回覆的留言
@@ -31,7 +35,7 @@ const captchaError    = ref("");
 
 async function fetchCaptcha() {
   try {
-    const res = await fetch("/api/captcha");
+    const res = await apiFetch("/api/captcha");
     if (!res.ok) return;
     const data = await res.json();
     captchaQuestion.value = data.question;
@@ -65,11 +69,54 @@ const MAX_LEN   = 300;
 const charCount = computed(() => newText.value.length);
 const overLimit = computed(() => charCount.value > MAX_LEN);
 
+// ── 相對時間 ──────────────────────────────────────────────────────
+function relativeTime(ts) {
+  const now = Math.floor(Date.now() / 1000);
+  const diff = now - ts;
+  if (diff < 60) return "剛剛";
+  if (diff < 3600) return `${Math.floor(diff / 60)}分鐘前`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}小時前`;
+  return `${Math.floor(diff / 86400)}天前`;
+}
+
+// ── 頭像色彩 ──────────────────────────────────────────────────────
+const AVATAR_COLORS = [
+  "#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6",
+  "#ec4899", "#06b6d4", "#84cc16", "#f97316", "#6366f1",
+];
+
+function avatarColor(name) {
+  let hash = 0;
+  for (let i = 0; i < (name || "").length; i++) {
+    hash = (hash * 31 + name.charCodeAt(i)) & 0xffff;
+  }
+  return AVATAR_COLORS[hash % AVATAR_COLORS.length];
+}
+
+function avatarChar(name) {
+  return (name || "匿")[0].toUpperCase();
+}
+
+// ── 留言排序 ──────────────────────────────────────────────────────
+const totalReplies = computed(() =>
+  comments.value.reduce((sum, c) => sum + (c.replies?.length || 0), 0)
+);
+
+const sortedComments = computed(() => {
+  const list = [...comments.value];
+  if (sortOrder.value === "most_liked") {
+    list.sort((a, b) => (b.likes || 0) - (a.likes || 0));
+  } else {
+    list.sort((a, b) => (b.id || 0) - (a.id || 0));
+  }
+  return list;
+});
+
 // ── 留言清單 ──────────────────────────────────────────────────────
 async function fetchComments() {
   if (!props.code || !props.foodName) return;
   try {
-    const r    = await fetch(`/api/food/${props.code}/${encodeURIComponent(props.foodName)}/comments`);
+    const r    = await apiFetch(`/api/food/${props.code}/${encodeURIComponent(props.foodName)}/comments`);
     const data = await r.json();
     comments.value = data.comments || [];
   } catch {
@@ -110,12 +157,9 @@ async function submitComment() {
 
   try {
     posting.value = true;
-    const headers = { "Content-Type": "application/json" };
-    if (isLoggedIn.value) Object.assign(headers, authHeaders());
-
-    const r = await fetch(
+    const r = await apiFetch(
       `/api/food/${props.code}/${encodeURIComponent(props.foodName)}/comments`,
-      { method: "POST", headers, body: JSON.stringify(payload) }
+      { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) }
     );
     const created = await r.json();
 
@@ -154,17 +198,15 @@ async function submitReply(parentComment) {
   if (!replyText.value.trim() || replyPosting.value) return;
   replyPosting.value = true;
   try {
-    const headers = { "Content-Type": "application/json" };
-    if (isLoggedIn.value) Object.assign(headers, authHeaders());
     const payload = {
       text: replyText.value.trim(),
       parent_id: parentComment.id,
     };
     if (!isLoggedIn.value) payload.user = newUser.value || "匿名";
 
-    const r = await fetch(
+    const r = await apiFetch(
       `/api/food/${props.code}/${encodeURIComponent(props.foodName)}/comments`,
-      { method: "POST", headers, body: JSON.stringify(payload) }
+      { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) }
     );
     const created = await r.json();
     if (!r.ok) {
@@ -194,14 +236,12 @@ async function deleteComment(comment) {
   try {
     const headers = { "Content-Type": "application/json" };
     const body = {};
-    if (isLoggedIn.value && user.value && comment.user_id === user.value.id) {
-      Object.assign(headers, authHeaders());
-    } else {
+    if (!isLoggedIn.value || !user.value || comment.user_id !== user.value.id) {
       const token = getCommentToken(comment.id);
       if (!token) return;
       body.token = token;
     }
-    const r = await fetch(
+    const r = await apiFetch(
       `/api/food/${props.code}/${encodeURIComponent(props.foodName)}/comments/${comment.id}`,
       { method: "DELETE", headers, body: JSON.stringify(body) }
     );
@@ -215,7 +255,7 @@ async function deleteComment(comment) {
 async function likeComment(comment) {
   if (!props.code || !props.foodName) return;
   try {
-    const r = await fetch(
+    const r = await apiFetch(
       `/api/food/${props.code}/${encodeURIComponent(props.foodName)}/comments/${comment.id}/like`,
       { method: "POST" }
     );
@@ -298,11 +338,32 @@ watch(
     </div>
 
     <div class="comment-list" v-if="comments.length">
-      <h3 style="margin: 10px 0 6px">留言（{{ comments.length }}）</h3>
-      <div class="comment-item" v-for="c in comments" :key="c.id">
+      <div class="comment-list-header">
+        <h3>
+          留言（{{ comments.length }} 條<template v-if="totalReplies > 0">，含 {{ totalReplies }} 則回覆</template>）
+        </h3>
+        <div class="sort-toggle">
+          <button
+            class="sort-btn"
+            :class="{ active: sortOrder === 'newest' }"
+            @click="sortOrder = 'newest'"
+          >最新</button>
+          <button
+            class="sort-btn"
+            :class="{ active: sortOrder === 'most_liked' }"
+            @click="sortOrder = 'most_liked'"
+          >最多讚</button>
+        </div>
+      </div>
+
+      <div class="comment-item" v-for="c in sortedComments" :key="c.id">
         <div class="meta">
+          <span
+            class="avatar"
+            :style="{ background: avatarColor(c.user || '匿名') }"
+          >{{ avatarChar(c.user || '匿名') }}</span>
           <strong class="meta-user">{{ c.user || "匿名" }}</strong>
-          <span class="meta-time"> · {{ new Date(c.ts * 1000).toLocaleString() }}</span>
+          <span class="meta-time"> · {{ relativeTime(c.ts) }}</span>
         </div>
         <p class="text">{{ c.text }}</p>
         <div class="comment-actions">
@@ -343,8 +404,12 @@ watch(
         <div class="replies" v-if="c.replies && c.replies.length">
           <div class="reply-item" v-for="r in c.replies" :key="r.id">
             <div class="meta">
+              <span
+                class="avatar avatar-sm"
+                :style="{ background: avatarColor(r.user || '匿名') }"
+              >{{ avatarChar(r.user || '匿名') }}</span>
               <strong class="meta-user">{{ r.user || "匿名" }}</strong>
-              <span class="meta-time"> · {{ new Date(r.ts * 1000).toLocaleString() }}</span>
+              <span class="meta-time"> · {{ relativeTime(r.ts) }}</span>
             </div>
             <p class="text">{{ r.text }}</p>
             <div class="comment-actions">
@@ -468,11 +533,65 @@ watch(
 .submit-btn:hover:not([disabled]) { background: var(--c-primary-hover); }
 .submit-btn[disabled] { opacity: 0.6; cursor: not-allowed; }
 
+/* Comment list header with sort toggle */
+.comment-list-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 10px 0 6px;
+}
+.comment-list-header h3 {
+  margin: 0;
+  font-size: var(--text-base);
+  font-weight: 700;
+  color: var(--c-text);
+}
+.sort-toggle {
+  display: flex;
+  gap: 4px;
+}
+.sort-btn {
+  border: 1px solid var(--c-border);
+  background: var(--c-surface);
+  border-radius: var(--r-full);
+  padding: 3px 10px;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  cursor: pointer;
+  color: var(--c-text-3);
+  transition: all var(--dur);
+}
+.sort-btn:hover { border-color: var(--c-primary); color: var(--c-primary); }
+.sort-btn.active { background: var(--c-primary); color: #fff; border-color: var(--c-primary); }
+
+/* Avatar */
+.avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  flex-shrink: 0;
+  margin-right: 2px;
+}
+.avatar-sm {
+  width: 20px;
+  height: 20px;
+  font-size: 10px;
+}
+
 .comment-list .comment-item {
   padding: 10px 0;
   border-top: 1px solid var(--c-hover);
 }
 .comment-list .comment-item .meta {
+  display: flex;
+  align-items: center;
+  gap: 4px;
   font-size: var(--text-sm);
   color: var(--c-text-3);
 }

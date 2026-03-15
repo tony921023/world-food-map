@@ -2,6 +2,7 @@
 import { ref, watch, computed } from "vue";
 import { useAuth } from "../composables/useAuth.js";
 import { useFavorites } from "../composables/useFavorites.js";
+import { apiFetch } from "../utils/api.js";
 
 const props = defineProps({
   show: { type: Boolean, default: false },
@@ -9,7 +10,7 @@ const props = defineProps({
 
 const emit = defineEmits(["close", "goto"]);
 
-const { user, authHeaders } = useAuth();
+const { user } = useAuth();
 const { myFavorites } = useFavorites();
 
 // ── 分頁 ──────────────────────────────────────────────────────────
@@ -62,9 +63,9 @@ async function saveProfile() {
 
   saving.value = true;
   try {
-    const res = await fetch("/api/auth/profile", {
+    const res = await apiFetch("/api/auth/profile", {
       method:  "PUT",
-      headers: { "Content-Type": "application/json", ...authHeaders() },
+      headers: { "Content-Type": "application/json" },
       body:    JSON.stringify(body),
     });
     const data = await res.json();
@@ -94,7 +95,7 @@ const loadingComments = ref(false);
 async function fetchMyComments() {
   loadingComments.value = true;
   try {
-    const res = await fetch("/api/auth/my-comments", { headers: authHeaders() });
+    const res = await apiFetch("/api/auth/my-comments");
     if (!res.ok) { myComments.value = []; return; }
     const data = await res.json();
     myComments.value = data.comments || [];

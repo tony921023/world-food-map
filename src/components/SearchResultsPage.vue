@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, watch } from "vue";
+import { apiFetch } from "../utils/api.js";
 
 const props = defineProps({
   show:           { type: Boolean, default: false },
@@ -9,15 +10,26 @@ const props = defineProps({
 
 const emit = defineEmits(["close", "pick"]);
 
-const allResults     = ref([]);
-const filterCountry  = ref("");
+const allResults      = ref([]);
+const filterCountry   = ref("");
 const filterMinRating = ref(0);
-const sortBy         = ref("likes");
-const loading        = ref(false);
+const filterTag       = ref("");
+const sortBy          = ref("likes");
+const loading         = ref(false);
+const availableTags   = ref([]);
 
 const COUNTRY_NAMES = {
   JP: "日本", TW: "台灣", KR: "韓國", US: "美國", CA: "加拿大",
 };
+
+async function fetchTags() {
+  try {
+    const res = await apiFetch("/api/tags");
+    if (!res.ok) return;
+    const data = await res.json();
+    availableTags.value = data.tags || [];
+  } catch { /* ignore */ }
+}
 
 // 每次開啟時用 initialResults 初始化，並重新 fetch 以確保資料完整
 watch(
@@ -25,6 +37,8 @@ watch(
   async (val) => {
     if (val) {
       allResults.value = props.initialResults || [];
+      filterTag.value  = "";
+      fetchTags();
       if (props.initialQuery) await doSearch(props.initialQuery);
     }
   }
@@ -34,7 +48,7 @@ async function doSearch(q) {
   if (!q) return;
   loading.value = true;
   try {
-    const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
+    const res = await apiFetch(`/api/search?q=${encodeURIComponent(q)}`);
     if (!res.ok) throw new Error();
     const data = await res.json();
     allResults.value = data.results || [];
@@ -52,6 +66,9 @@ const filteredResults = computed(() => {
   }
   if (filterMinRating.value > 0) {
     list = list.filter((r) => r.avg_rating >= filterMinRating.value);
+  }
+  if (filterTag.value) {
+    list = list.filter((r) => r.tags && r.tags.includes(filterTag.value));
   }
   if (sortBy.value === "rating") {
     list = [...list].sort((a, b) => b.avg_rating - a.avg_rating || b.likes - a.likes);
@@ -105,6 +122,22 @@ function pickItem(item) {
         <button class="pill" :class="{ active: filterMinRating === 0 }" @click="filterMinRating = 0">不限</button>
         <button class="pill" :class="{ active: filterMinRating === 3 }" @click="filterMinRating = 3">3★+</button>
         <button class="pill" :class="{ active: filterMinRating === 4 }" @click="filterMinRating = 4">4★+</button>
+      </div>
+
+      <div class="filter-group" v-if="availableTags.length">
+        <span class="filter-label">標籤：</span>
+        <button
+          class="pill"
+          :class="{ active: filterTag === '' }"
+          @click="filterTag = ''"
+        >全部</button>
+        <button
+          v-for="tag in availableTags"
+          :key="tag"
+          class="pill"
+          :class="{ active: filterTag === tag }"
+          @click="filterTag = filterTag === tag ? '' : tag"
+        >{{ tag }}</button>
       </div>
 
       <div class="filter-group">
