@@ -15,6 +15,7 @@ import UserMenu from "./UserMenu.vue";
 import MyCommentsModal from "./MyCommentsModal.vue";
 import ProfileModal from "./ProfileModal.vue";
 import SearchResultsPage from "./SearchResultsPage.vue";
+import AddFoodModal from "./AddFoodModal.vue";
 
 // === Toast ===
 const { success: toastSuccess, error: toastError, info: toastInfo } = useToast();
@@ -341,6 +342,15 @@ async function jumpToTopFood(item) {
   if (found) await openFoodDetail(found);
 }
 
+// === Add Food ===
+const showAddFood = ref(false);
+
+async function handleFoodAdded() {
+  if (selectedCode.value) {
+    await fetchFoodsByCountry(selectedCode.value);
+  }
+}
+
 // === Reset map ===
 const resetMap = () => {
   panzoom.value = null;
@@ -500,6 +510,7 @@ watch(svgObj, (el) => {
         @toggle-tag="toggleTag"
         @toggle-favorite="handleToggleFavoriteList"
         @open-food="openFoodDetail"
+        @add-food="showAddFood = true"
       />
     </Transition>
 
@@ -544,6 +555,15 @@ watch(svgObj, (el) => {
       :initial-results="searchResultsData"
       @close="showSearchResults = false"
       @pick="handleSearchPick"
+    />
+
+    <AddFoodModal
+      :show="showAddFood"
+      :code="selectedCode || ''"
+      :country-name="selectedCountryName || ''"
+      :all-tags="allTags"
+      @close="showAddFood = false"
+      @added="handleFoodAdded"
     />
   </div>
 </template>

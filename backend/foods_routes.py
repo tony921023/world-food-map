@@ -1,7 +1,7 @@
 from flask import Blueprint, request, jsonify
 from urllib.parse import unquote
 from store import likes_store, ratings_store, save_json, load_foods_json
-from config import LIKES_JSON, RATINGS_JSON, COUNTRY_MAP
+from config import FOODS_JSON, LIKES_JSON, RATINGS_JSON, COUNTRY_MAP
 from helpers import (
     current_user, err,
     kstr, resolve_country_block,
@@ -33,6 +33,46 @@ def get_country_foods(code):
         })
     enriched.sort(key=lambda x: x["likes"], reverse=True)
     return jsonify({"foods": enriched})
+
+
+@foods_bp.route("/api/foods/<code>", methods=["POST"])
+def add_food(code):
+    u = current_user()
+    if not u:
+        return err("請先登入", 401)
+
+    body = request.get_json(silent=True) or {}
+    name = (body.get("name") or "").strip()
+    desc = (body.get("desc") or "").strip()
+    img  = (body.get("img") or "").strip()
+    tags = [t.strip() for t in (body.get("tags") or []) if isinstance(t, str) and t.strip()]
+
+    if not name:
+        return err("食物名稱為必填")
+    if len(name) > 100:
+        return err("名稱過長（最多 100 字）")
+    if len(desc) > 500:
+        return err("描述過長（最多 500 字）")
+
+    data = load_foods_json()
+    code_up, country_name, block = resolve_country_block(code, data)
+    if not country_name:
+        return err("國家不存在", 404)
+
+    foods = block.get("foods", [])
+    if any(f.get("name", "").lower() == name.lower() for f in foods):
+        return err("此食物名稱已存在")
+
+    new_food = {"name": name, "desc": desc, "img": img, "tags": tags}
+    foods.append(new_food)
+    data[country_name]["foods"] = foods
+    save_json(FOODS_JSON, data)
+    load_foods_json(force=True)
+
+    return jsonify({
+        "name": name, "img": img, "tags": tags,
+        "likes": 0, "avg_rating": 0, "rating_count": 0,
+    }), 201
 
 
 @foods_bp.route("/api/food/<code>/<name>")

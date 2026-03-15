@@ -22,6 +22,7 @@ const emit = defineEmits([
   "toggle-tag",
   "toggle-favorite",
   "open-food",
+  "add-food",
 ]);
 
 function isFav(name) {
@@ -58,17 +59,17 @@ const countryLabel = computed(() =>
     </div>
 
     <!-- 篩選列 -->
-    <div class="filter-bar" v-if="!loading && !errorMsg && allFoods.length">
+    <div class="filter-bar" v-if="!loading && !errorMsg">
       <div class="filter-inner">
         <button
           class="fav-filter-btn"
           :class="{ active: showFavoritesOnly }"
           @click="emit('toggle-fav-filter')"
-          v-if="isLoggedIn"
+          v-if="isLoggedIn && allFoods.length"
         >
           ❤️ 只看收藏
         </button>
-        <div class="tag-chips" v-if="allTags.length">
+        <div class="tag-chips" v-if="allTags.length && allFoods.length">
           <button
             class="tag-chip"
             v-for="tag in allTags"
@@ -77,6 +78,13 @@ const countryLabel = computed(() =>
             @click="emit('toggle-tag', tag)"
           >{{ tag }}</button>
         </div>
+        <button
+          v-if="isLoggedIn"
+          class="add-food-btn"
+          @click="emit('add-food')"
+        >
+          ＋ 新增美食
+        </button>
       </div>
     </div>
 
@@ -229,6 +237,22 @@ const countryLabel = computed(() =>
 .fav-filter-btn.active { background: #fee2e2; color: #dc2626; border-color: #fca5a5; }
 
 .tag-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+
+.add-food-btn {
+  margin-left: auto;
+  background: var(--c-primary);
+  color: #fff;
+  border: none;
+  border-radius: var(--r-full);
+  padding: 6px 16px;
+  font-size: var(--text-sm);
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--dur), transform var(--dur);
+  box-shadow: var(--shadow-sm);
+}
+.add-food-btn:hover { background: var(--c-primary-hover); transform: translateY(-1px); }
 .tag-chip {
   background: rgba(255,255,255,0.85);
   border: 1px solid var(--c-border);
